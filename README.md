@@ -511,6 +511,21 @@ The explainability analysis showed that the most influential features are relate
 ---
 
 ## How to Run the Project
+## Setup Notes
+
+Before running the pipeline, make sure the required folder structure exists locally:
+
+- data/raw/
+- data/processed/
+- results/figures/
+- results/tables/
+- models/
+
+The raw BER dataset should be placed inside data/raw/ using the expected file name:
+
+ber_cleaned_20231005.csv
+
+The generated processed files, figures, tables, and trained models are created when the pipeline is run locally.
 
 This project was developed using:
 
