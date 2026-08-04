@@ -205,6 +205,7 @@ projects-qudsia-raiyan/
 * pandas
 * NumPy
 * scikit-learn
+* SHAP
 * matplotlib
 * seaborn
 * joblib
@@ -467,7 +468,7 @@ Explainability is implemented in:
 src/explainability.py
 ```
 
-Permutation importance was used to identify which original dwelling features most influenced model performance.
+Two complementary explainability methods are used: permutation importance (global, model-agnostic) and SHAP (global and local, based on the model's internal structure). Permutation importance was used to identify which original dwelling features most influenced model performance.
 
 Permutation importance measures how much the model performance decreases when the values of one feature are randomly shuffled. If shuffling a feature causes a large drop in performance, the model is relying strongly on that feature.
 
@@ -497,6 +498,55 @@ A limitation of permutation importance is that correlated features can share imp
 ### Permutation Importance
 
 ![Permutation Importance](results/figures/permutation_importance_top_features.png)
+
+### SHAP Explainability
+
+In addition to permutation importance, the project uses SHAP (SHapley Additive exPlanations) to explain the final Hist Gradient Boosting pipeline. SHAP assigns each feature a contribution value for every individual prediction, based on cooperative game theory, so it supports both global feature-importance summaries and local, prediction-level explanations.
+
+SHAP values were computed with `TreeExplainer` on a stratified sample of 2,000 test-set rows. Because the preprocessing pipeline one-hot encodes categorical columns, SHAP values are computed on the encoded matrix and then mapped back to original feature names: one-hot columns belonging to the same categorical feature (e.g. `dwelling_type_Detached house`, `dwelling_type_Semi-detached house`, ...) are summed to a single mean absolute SHAP value per original feature, and numeric features are shown with their original, unscaled values (e.g. real U-values and m² areas) rather than the standardised values the model actually sees. This keeps the SHAP outputs directly comparable with the permutation importance table above, which also operates on original feature columns.
+
+Top 10 features by mean absolute SHAP value:
+
+| Rank | Feature                   | Mean \|SHAP\| |
+| ---: | -------------------------- | ------------: |
+|    1 | `u_value_window`           |         0.720 |
+|    2 | `ground_floor_area`        |         0.593 |
+|    3 | `u_value_wall`              |         0.541 |
+|    4 | `year_of_construction`      |         0.540 |
+|    5 | `u_value_roof`              |         0.371 |
+|    6 | `main_water_heating_fuel`   |         0.241 |
+|    7 | `u_value_floor`             |         0.232 |
+|    8 | `wall_area`                 |         0.186 |
+|    9 | `volume`                    |         0.179 |
+|   10 | `dwelling_type`             |         0.175 |
+
+Full results: [`results/tables/shap_feature_importance.csv`](results/tables/shap_feature_importance.csv) and [`results/tables/shap_vs_permutation_importance.csv`](results/tables/shap_vs_permutation_importance.csv).
+
+#### Global Summary (Beeswarm)
+
+![SHAP Summary Beeswarm](results/figures/shap_summary_beeswarm.png)
+
+Each point is one dwelling; its position shows the SHAP value (impact on the model's retrofit-priority score) and its colour shows the underlying feature value. High (red) window, wall, and roof U-values push predictions toward retrofit priority, while low (blue) U-values push toward not-priority, confirming these thermal-transmittance features drive the model in the physically expected direction.
+
+#### Local Explanations
+
+Two individual predictions were explained with SHAP waterfall plots:
+
+**Confidently retrofit-priority (P = 1.000):**
+
+![SHAP Waterfall Confident](results/figures/shap_waterfall_confident_priority.png)
+
+This dwelling has very poor U-values across roof (1.66), wall (1.92), and window (5.66) — all far worse than modern building-regulation standards — which together push the prediction strongly toward retrofit priority.
+
+**Borderline prediction (P = 0.473):**
+
+![SHAP Waterfall Borderline](results/figures/shap_waterfall_borderline.png)
+
+This dwelling shows conflicting evidence: strong (low) U-values for window, wall, and roof push toward not-priority, but a comparatively recent-but-not-modern construction year (1982) pushes slightly the other way, leaving the model close to the 0.5 decision boundary.
+
+#### SHAP vs Permutation Importance
+
+The two methods agree closely: 9 of the top 10 features are shared between them (`u_value_window`, `ground_floor_area`, `u_value_wall`, `year_of_construction`, `u_value_roof`, `main_water_heating_fuel`, `u_value_floor`, `wall_area`, `dwelling_type`), with only `floor_area` (permutation, rank 10) swapped for `volume` (SHAP, rank 9). The two methods disagree mainly on ranking order rather than which features matter — permutation importance ranks `ground_floor_area` first (largest drop in macro F1 when shuffled), while SHAP ranks `u_value_window` first (largest average contribution to individual predictions). This is expected: permutation importance measures the effect on overall model *performance*, while SHAP measures the average magnitude of each feature's contribution to individual model *outputs*, so a feature can be highly influential on individual predictions without being the single most damaging feature to shuffle, and vice versa. The consistency between the two independent methods increases confidence that these dwelling-envelope and construction-year features are genuinely driving the model, rather than being an artefact of one particular importance method.
 
 ---
 
@@ -539,7 +589,7 @@ The Python dependencies are listed in:
 requirements.txt
 ```
 
-The main packages used are `pandas`, `numpy`, `scikit-learn`, `matplotlib`, `seaborn`, `jupyter`, `joblib`, and `openpyxl`.
+The main packages used are `pandas`, `numpy`, `scikit-learn`, `shap`, `matplotlib`, `seaborn`, `jupyter`, `joblib`, and `openpyxl`.
 
 ### 1. Clone the repository
 
@@ -617,6 +667,8 @@ results/tables/best_model_evaluation_summary.csv
 results/tables/best_model_classification_report.csv
 results/tables/best_model_confusion_matrix.csv
 results/tables/permutation_importance.csv
+results/tables/shap_feature_importance.csv
+results/tables/shap_vs_permutation_importance.csv
 results/tables/top_features_rounded.csv
 results/tables/key_results_summary.txt
 ```
@@ -636,6 +688,9 @@ results/figures/model_comparison_macro_f1.png
 results/figures/model_comparison_roc_auc.png
 results/figures/model_comparison_priority_recall.png
 results/figures/permutation_importance_top_features.png
+results/figures/shap_summary_beeswarm.png
+results/figures/shap_waterfall_confident_priority.png
+results/figures/shap_waterfall_borderline.png
 ```
 
 ---
@@ -664,7 +719,6 @@ Possible extensions include:
 * compare different retrofit-priority thresholds;
 * include more carefully screened BER variables;
 * perform county-level or dwelling-type-specific modelling;
-* add SHAP explanations for local prediction-level interpretability;
 * explore regression models for numerical energy-performance indicators;
 * validate results on newer BER records if available.
 

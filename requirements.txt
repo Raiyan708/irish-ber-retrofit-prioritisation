@@ -6,4 +6,5 @@ seaborn
 jupyter
 joblib
 openpyxl
+shap
 
