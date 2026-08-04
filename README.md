@@ -195,7 +195,9 @@ Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisatio
 │   └── processed/
 │
 ├── docs/
-│   └── project_log.md
+│   ├── project_log.md
+│   ├── evaluation_notes.md
+│   └── leakage_notes.md
 │
 ├── models/
 │   └── best_model.joblib
@@ -232,6 +234,7 @@ Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisatio
 * NumPy
 * scikit-learn
 * SHAP
+* Streamlit
 * matplotlib
 * seaborn
 * joblib
@@ -664,7 +667,7 @@ The explainability analysis showed that the most influential features are relate
 
 ---
 
-## Saved Model for Deployment
+## Saved Model
 
 The final trained pipeline (preprocessing + tuned Hist Gradient Boosting model) is saved to:
 
@@ -695,7 +698,22 @@ This is deliberate, not a shortcut: `shap.TreeExplainer` reads the trained tree 
 ---
 
 ## How to Run the Project
-## Setup Notes
+
+This project was developed using:
+
+```text
+Python 3.13.5
+```
+
+The Python dependencies are listed in:
+
+```text
+requirements.txt
+```
+
+The main packages used are `pandas`, `numpy`, `scikit-learn`, `shap`, `streamlit`, `matplotlib`, `seaborn`, `jupyter`, `joblib`, and `openpyxl`.
+
+### Setup Notes
 
 Before running the pipeline, make sure the required folder structure exists locally:
 
@@ -710,20 +728,6 @@ The raw BER dataset should be placed inside data/raw/ using the expected file na
 ber_cleaned_20231005.csv
 
 The generated processed files, figures, tables, and trained models are created when the pipeline is run locally.
-
-This project was developed using:
-
-```text
-Python 3.13.5
-```
-
-The Python dependencies are listed in:
-
-```text
-requirements.txt
-```
-
-The main packages used are `pandas`, `numpy`, `scikit-learn`, `shap`, `matplotlib`, `seaborn`, `jupyter`, `joblib`, and `openpyxl`.
 
 ### 1. Clone the repository
 
@@ -809,6 +813,27 @@ streamlit run app.py
 ```
 
 See [Deployment](#deployment) below for steps to deploy this on Streamlit Community Cloud.
+
+---
+
+## Deployment
+
+The repository is deployment-ready as-is: `app.py` sits at the repo root, `requirements.txt` lists every dependency the app needs, and the files the app actually reads at runtime (`models/best_model.joblib`, and the small CSVs/PNGs under `results/tables` and `results/figures`) are all committed to git. The large raw and processed datasets are not needed by the app and stay out of the repo via `.gitignore`.
+
+To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
+
+1. Push this repository to GitHub (already the case for this project).
+2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with the GitHub account that has access to this repo.
+3. Click **"Create app"** → **"Deploy a public app from GitHub"**.
+4. Fill in:
+   * **Repository**: `ACM40960/Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data`
+   * **Branch**: `main`
+   * **Main file path**: `app.py`
+5. (Optional) Under **"Advanced settings"**, pick a Python version if you want to match the one used for development (`Python 3.13.5`, per [How to Run the Project](#how-to-run-the-project)) — Streamlit Cloud will otherwise pick a recent default, which should also work since `requirements.txt` doesn't pin exact versions.
+6. Click **"Deploy"**. Streamlit Cloud installs `requirements.txt` and starts the app; the first build typically takes a few minutes.
+7. Once live, the app gets a URL like `https://<app-name>.streamlit.app`. You can customise the subdomain from the app's settings menu.
+
+Any future push to `main` that touches `app.py`, `requirements.txt`, `models/best_model.joblib`, or the `results/` folder will trigger Streamlit Cloud to automatically rebuild and redeploy.
 
 ---
 
@@ -916,6 +941,6 @@ University College Dublin
 
 * Ahern, C., Raushan, K., and Essien-Thompson, E. (2024). [*Irish Building Energy Rating Database - (Cleaned 05/10/2023)*](https://data.mendeley.com/datasets/yhgdzfpnym/1). Mendeley Data, Version 1. DOI: [10.17632/yhgdzfpnym.1](https://doi.org/10.17632/yhgdzfpnym.1).
 
-* Ribeiro, M. T., Singh, S., and Guestrin, C. (2016). “Why Should I Trust You?” Explaining the Predictions of Any Classifier. Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining.(https://arxiv.org/abs/1602.04938).
+* Ribeiro, M. T., Singh, S., and Guestrin, C. (2016). [“Why Should I Trust You?” Explaining the Predictions of Any Classifier](https://arxiv.org/abs/1602.04938). Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining.
 
-* Lundberg, S. M., and Lee, S. I. (2017). A Unified Approach to Interpreting Model Predictions. Advances in Neural Information Processing Systems.(https://arxiv.org/abs/1705.07874).
+* Lundberg, S. M., and Lee, S. I. (2017). [A Unified Approach to Interpreting Model Predictions](https://arxiv.org/abs/1705.07874). Advances in Neural Information Processing Systems.
