@@ -29,6 +29,9 @@ data/processed/*
 models/*.joblib
 models/*.pkl
 
+# Ship the final trained pipeline used by the dashboard
+!models/best_model.joblib
+
 # Temporary files
 *.tmp
 *.log

@@ -183,7 +183,7 @@ Results summary
 ## Repository Structure
 
 ```text
-projects-qudsia-raiyan/
+Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data/
 │
 ├── README.md
 ├── requirements.txt
@@ -197,6 +197,7 @@ projects-qudsia-raiyan/
 │   └── project_log.md
 │
 ├── models/
+│   └── best_model.joblib
 │
 ├── notebooks/
 │   └── 01_data_inspection.ipynb
@@ -662,6 +663,36 @@ The explainability analysis showed that the most influential features are relate
 
 ---
 
+## Saved Model for Deployment
+
+The final trained pipeline (preprocessing + tuned Hist Gradient Boosting model) is saved to:
+
+```text
+models/best_model.joblib
+```
+
+This file is produced by `src/train_models.py` and is committed to this repository (it is the one exception carved out of the `models/*.joblib` rule in `.gitignore`) so that the model can be loaded directly, without retraining, by anything that needs predictions — including the Streamlit dashboard. At roughly 1 MB, it is small enough to ship safely in the repository.
+
+```python
+import joblib
+
+pipeline = joblib.load("models/best_model.joblib")
+prediction = pipeline.predict(new_dwelling_df)          # 0 = not priority, 1 = retrofit priority
+probability = pipeline.predict_proba(new_dwelling_df)[:, 1]
+```
+
+**SHAP explainer:** rather than also persisting a fitted SHAP explainer object, the explainer is reconstructed on the fly from the loaded model:
+
+```python
+import shap
+
+explainer = shap.TreeExplainer(pipeline.named_steps["model"])
+```
+
+This is deliberate, not a shortcut: `shap.TreeExplainer` reads the trained tree structure directly from the model object, so building it involves no retraining or refitting on data — it takes under 50ms, regardless of dataset size. Saving a second serialized explainer file alongside the model would duplicate the same tree information for no runtime benefit, so reconstructing it at startup is both simpler and lighter than persisting one.
+
+---
+
 ## How to Run the Project
 ## Setup Notes
 
@@ -696,8 +727,8 @@ The main packages used are `pandas`, `numpy`, `scikit-learn`, `shap`, `matplotli
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/ACM40960/projects-qudsia-raiyan.git
-cd projects-qudsia-raiyan
+git clone https://github.com/ACM40960/Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data.git
+cd Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data
 ```
 
 ### 2. Install requirements
