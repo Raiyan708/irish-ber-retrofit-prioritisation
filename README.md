@@ -217,6 +217,7 @@ projects-qudsia-raiyan/
     ├── evaluate_models.py
     ├── explainability.py
     ├── results_summary.py
+    ├── sample_size_experiment.py
     └── run_pipeline.py
 ```
 
@@ -541,6 +542,23 @@ The cross-validated means are close to the single-split test metrics (within rou
 
 ![Model Comparison Priority Recall](results/figures/model_comparison_priority_recall.png)
 
+### Sample-Size Sensitivity
+
+Implemented in [`src/sample_size_experiment.py`](src/sample_size_experiment.py) (a standalone, optional script — not part of the main `run_pipeline.py`).
+
+All results above use a stratified 100,000-row sample of the 790,389-row model-ready dataset, mainly for fast iteration during development. To check whether this choice affects the results, the final tuned Hist Gradient Boosting pipeline (same hyperparameters, fresh 80/20 split each time) was re-trained from scratch on three sample sizes: 100,000 rows, 300,000 rows, and the full dataset.
+
+| Sample size | Train rows | Fit time | Accuracy | Balanced Accuracy | Macro F1 | ROC-AUC |
+| ----------: | ---------: | -------: | -------: | -----------------: | -------: | ------: |
+|     100,000 |     80,000 |    2.2 s |   0.9603 |              0.8634 |   0.8918 |  0.9704 |
+|     300,000 |    240,000 |    7.4 s |   0.9635 |              0.8697 |   0.9002 |  0.9729 |
+| 790,389 (full) |  632,311 |   38.8 s |   0.9651 |              0.8715 |   0.9042 |  0.9753 |
+
+Full results: [`results/tables/sample_size_comparison.csv`](results/tables/sample_size_comparison.csv).
+
+![Sample Size Comparison](results/figures/sample_size_comparison.png)
+
+Training on the full dataset was very fast (under 40 seconds) — Hist Gradient Boosting scales well, so compute was not actually a constraint here. Every metric improves modestly and monotonically with more data (macro F1: +0.008 from 100k to 300k, +0.004 from 300k to full), with diminishing returns as sample size grows. This confirms the results reported throughout this project are not an artefact of the smaller 100,000-row sample — they hold, and improve slightly, at full scale. The 100,000-row sample is kept as the basis for all other reported results (model comparison, tuning, cross-validation, explainability) for consistency and faster iteration, since the difference in performance is small relative to the difference in runtime for the more expensive steps (RandomizedSearchCV and SHAP).
 
 ---
 
@@ -734,6 +752,14 @@ python src/explainability.py
 python src/results_summary.py
 ```
 
+### Optional: Sample-size sensitivity check
+
+Not part of the main pipeline above; re-trains the final model on 100k/300k/full-dataset samples to check results hold at scale (see [Sample-Size Sensitivity](#sample-size-sensitivity)). Requires `src/train_models.py` to have already been run at least once, since it reuses the tuned hyperparameters saved in `models/best_model.joblib`.
+
+```bash
+python src/sample_size_experiment.py
+```
+
 ---
 
 ## Main Output Files
@@ -754,6 +780,7 @@ results/tables/hgb_tuning_before_after.csv
 results/tables/hgb_best_params.csv
 results/tables/cv_5fold_summary.csv
 results/tables/cv_5fold_raw_scores.csv
+results/tables/sample_size_comparison.csv
 results/tables/permutation_importance.csv
 results/tables/shap_feature_importance.csv
 results/tables/shap_vs_permutation_importance.csv
@@ -777,6 +804,7 @@ results/figures/model_comparison_roc_auc.png
 results/figures/model_comparison_priority_recall.png
 results/figures/confusion_matrix_hist_gradient_boosting_tuned.png
 results/figures/roc_curve_hist_gradient_boosting_tuned.png
+results/figures/sample_size_comparison.png
 results/figures/permutation_importance_top_features.png
 results/figures/shap_summary_beeswarm.png
 results/figures/shap_waterfall_confident_priority.png
@@ -795,7 +823,7 @@ Main limitations:
 * BER data is based on standardised assessment assumptions, not actual household energy consumption.
 * The model uses selected dwelling-level variables rather than every available BER field.
 * Some BER fields were excluded because of missingness, interpretation difficulty, or leakage risk.
-* The model was trained on a stratified sample of 100,000 rows for computational efficiency.
+* Most results in this project (model comparison, tuning, cross-validation, explainability) are based on a stratified sample of 100,000 rows, chosen for faster iteration and to keep the more expensive steps (hyperparameter search, SHAP) practical during development. A [sample-size sensitivity check](#sample-size-sensitivity) confirms results hold, and improve slightly, on the full 790,389-row dataset.
 * The analysis identifies statistical associations, not direct causal effects.
 * Further validation would be needed before using this type of model in operational retrofit planning.
 
@@ -805,7 +833,7 @@ Main limitations:
 
 Possible extensions include:
 
-* train selected models on a larger sample or the full dataset;
+* adopt the full dataset as the default for the main pipeline (model comparison, tuning, and explainability), now that the [sample-size sensitivity check](#sample-size-sensitivity) shows this is computationally practical;
 * compare different retrofit-priority thresholds;
 * include more carefully screened BER variables;
 * perform county-level or dwelling-type-specific modelling;
