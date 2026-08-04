@@ -800,6 +800,8 @@ python src/sample_size_experiment.py
 
 ## Dashboard
 
+**Live demo: [ml-retrofit-ber.streamlit.app](https://ml-retrofit-ber.streamlit.app)**
+
 A Streamlit dashboard at [`app.py`](app.py) turns the project into an interactive demo. It loads `models/best_model.joblib` at startup (no retraining) and has three tabs:
 
 * **🔮 Predict** — a form covering every feature the model expects (county, dwelling type, year of construction, floor/wall/roof/window areas, U-values, glazing ratio, heating fuel, etc.), defaulted to typical (median) values from the training data. Submitting it shows the retrofit-priority prediction, its probability, and a live SHAP waterfall plot explaining that specific prediction in real units (not standardised values).
@@ -820,7 +822,7 @@ See [Deployment](#deployment) below for steps to deploy this on Streamlit Commun
 
 The repository is deployment-ready: `app.py` sits at the repo root, `requirements.txt` lists every dependency the app needs, and the files the app actually reads at runtime (`models/best_model.joblib`, and the small CSVs/PNGs under `results/tables` and `results/figures`) are all committed to git. The large raw and processed datasets are not needed by the app and stay out of the repo via `.gitignore`.
 
-**Pinned versions matter here.** `models/best_model.joblib` is a pickled object, and scikit-learn's internal representation of fitted objects (like `ColumnTransformer`) has changed between versions in ways that break loading a pickle saved by an older version with a newer one. `requirements.txt` pins `scikit-learn==1.6.1` and `joblib==1.4.2` to match the exact versions the model was saved with, and [`runtime.txt`](runtime.txt) pins the Python version to `3.11` so Streamlit Cloud's default Python (which can be a very recent release without full wheel coverage for the ML stack) doesn't get used instead. If you ever retrain and re-save the model with different library versions, update these pins to match.
+**Pinned versions matter here.** `models/best_model.joblib` is a pickled object, and scikit-learn's internal representation of fitted objects (like `ColumnTransformer`) has changed between versions in ways that break loading a pickle saved by an older version with a newer one. `requirements.txt` pins `scikit-learn==1.6.1` and `joblib==1.4.2` to match the exact versions the model was saved with. That alone isn't enough, though: Streamlit Cloud's default Python version can be too new to have a prebuilt wheel for an older pin like `scikit-learn==1.6.1`, which forces a (likely to fail) source build. The Python version has to be set explicitly in the app's settings — see step 5 below. If you ever retrain and re-save the model with different library versions, update the pins in `requirements.txt` to match.
 
 To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
 
@@ -831,12 +833,13 @@ To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
    * **Repository**: `ACM40960/Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data`
    * **Branch**: `main`
    * **Main file path**: `app.py`
-5. Click **"Deploy"**. Streamlit Cloud reads `runtime.txt` and `requirements.txt` and starts the app; the first build typically takes a few minutes.
-6. Once live, the app gets a URL like `https://<app-name>.streamlit.app`. You can customise the subdomain from the app's settings menu.
+5. Set the Python version to **3.11** (or 3.12) — a version with full wheel coverage for the pinned scikit-learn/shap/numba stack. On app creation this is under **"Advanced settings"**; on an already-deployed app it's under the **⋮** menu → **"Settings"** → General → Python version. Do not leave this on the platform default, which can be a very recent Python release that hasn't caught up on prebuilt wheels yet.
+6. Click **"Deploy"**. Streamlit Cloud installs `requirements.txt` and starts the app; the first build typically takes a few minutes.
+7. Once live, the app gets a URL like `https://<app-name>.streamlit.app`. You can customise the subdomain from the app's settings menu.
 
-If an app was already deployed before `runtime.txt`/pinned versions were added, it needs a full reboot (not just a redeploy) to pick up the new Python version: open the app on Streamlit Cloud, click the **⋮** menu → **"Reboot app"**.
+If an app was already deployed before the Python version was pinned, changing it in Settings requires a full **reboot** (not just a redeploy) to take effect: **⋮** menu → **"Reboot app"**.
 
-Any future push to `main` that touches `app.py`, `requirements.txt`, `runtime.txt`, `models/best_model.joblib`, or the `results/` folder will trigger Streamlit Cloud to automatically rebuild and redeploy.
+Any future push to `main` that touches `app.py`, `requirements.txt`, `models/best_model.joblib`, or the `results/` folder will trigger Streamlit Cloud to automatically rebuild and redeploy (this does not include Python-version changes made in Settings, which need an explicit reboot as noted above).
 
 ---
 
