@@ -186,6 +186,7 @@ Results summary
 Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data/
 │
 ├── README.md
+├── app.py
 ├── requirements.txt
 ├── .gitignore
 │
@@ -790,6 +791,24 @@ Not part of the main pipeline above; re-trains the final model on 100k/300k/full
 ```bash
 python src/sample_size_experiment.py
 ```
+
+---
+
+## Dashboard
+
+A Streamlit dashboard at [`app.py`](app.py) turns the project into an interactive demo. It loads `models/best_model.joblib` at startup (no retraining) and has three tabs:
+
+* **🔮 Predict** — a form covering every feature the model expects (county, dwelling type, year of construction, floor/wall/roof/window areas, U-values, glazing ratio, heating fuel, etc.), defaulted to typical (median) values from the training data. Submitting it shows the retrofit-priority prediction, its probability, and a live SHAP waterfall plot explaining that specific prediction in real units (not standardised values).
+* **📊 Model & Data** — the static model comparison, tuning, and cross-validation tables, plus a few EDA and explainability figures, so the dashboard doubles as a project showcase rather than just a predictor.
+* **ℹ️ About** — a short summary of the project, data source, B2 threshold rationale, and limitations (condensed from this README, not duplicated verbatim).
+
+Run it locally with:
+
+```bash
+streamlit run app.py
+```
+
+See [Deployment](#deployment) below for steps to deploy this on Streamlit Community Cloud.
 
 ---
 

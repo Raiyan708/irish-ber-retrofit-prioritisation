@@ -7,4 +7,5 @@ jupyter
 joblib
 openpyxl
 shap
+streamlit
 
