@@ -10,9 +10,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import joblib
 
+from scipy.stats import randint, uniform, loguniform
+
 from sklearn.pipeline import Pipeline
 from sklearn.dummy import DummyClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -46,6 +48,18 @@ from preprocessing import (
 
 
 MODELS_DIR = PROJECT_ROOT / "models"
+
+# Hyperparameter search budget for the final Hist Gradient Boosting model.
+HGB_SEARCH_N_ITER = 25
+HGB_SEARCH_CV_FOLDS = 5
+
+HGB_PARAM_DISTRIBUTIONS = {
+    "model__learning_rate": loguniform(0.01, 0.3),
+    "model__max_iter": randint(100, 400),
+    "model__max_leaf_nodes": randint(15, 128),
+    "model__min_samples_leaf": randint(10, 100),
+    "model__l2_regularization": uniform(0, 2),
+}
 
 
 def load_model_data():
@@ -109,6 +123,70 @@ def get_models():
             random_state=RANDOM_STATE,
         ),
     }
+
+
+def tune_hist_gradient_boosting(preprocessor, X_train, y_train):
+    """
+    Search Hist Gradient Boosting hyperparameters with RandomizedSearchCV.
+
+    Uses stratified k-fold cross-validation on the training split, scoring
+    by macro F1 (consistent with how the final model was originally
+    selected among model families).
+    """
+    print(
+        f"\nTuning hist_gradient_boosting with RandomizedSearchCV "
+        f"({HGB_SEARCH_N_ITER} candidates, {HGB_SEARCH_CV_FOLDS}-fold CV)..."
+    )
+
+    pipeline = Pipeline(
+        steps=[
+            ("preprocessor", preprocessor),
+            ("model", HistGradientBoostingClassifier(random_state=RANDOM_STATE)),
+        ]
+    )
+
+    search = RandomizedSearchCV(
+        estimator=pipeline,
+        param_distributions=HGB_PARAM_DISTRIBUTIONS,
+        n_iter=HGB_SEARCH_N_ITER,
+        cv=HGB_SEARCH_CV_FOLDS,
+        scoring="f1_macro",
+        random_state=RANDOM_STATE,
+        n_jobs=-1,
+        refit=True,
+    )
+    search.fit(X_train, y_train)
+
+    print(f"Best CV macro F1: {search.best_score_:.4f}")
+    print(f"Best params: {search.best_params_}")
+
+    return search
+
+
+def save_tuning_results(search, default_metrics, tuned_metrics):
+    """Save the before/after tuning comparison table and best hyperparameters."""
+    default_row = dict(default_metrics)
+    default_row["model"] = "hist_gradient_boosting_default"
+
+    tuned_row = dict(tuned_metrics)
+    tuned_row["model"] = "hist_gradient_boosting_tuned"
+
+    comparison_df = pd.DataFrame([default_row, tuned_row])
+    comparison_path = RESULTS_TABLES_DIR / "hgb_tuning_before_after.csv"
+    comparison_df.to_csv(comparison_path, index=False)
+
+    best_params = {
+        key.replace("model__", ""): value
+        for key, value in search.best_params_.items()
+    }
+    best_params_df = pd.DataFrame(
+        list(best_params.items()), columns=["hyperparameter", "best_value"]
+    )
+    best_params_df["cv_macro_f1"] = search.best_score_
+    best_params_path = RESULTS_TABLES_DIR / "hgb_best_params.csv"
+    best_params_df.to_csv(best_params_path, index=False)
+
+    return comparison_path, best_params_path
 
 
 def evaluate_model(model_name, pipeline, X_test, y_test):
@@ -240,15 +318,49 @@ def main():
     metrics_df.to_csv(metrics_path, index=False)
 
     best_model_name = metrics_df.iloc[0]["model"]
+    best_model_macro_f1 = metrics_df.iloc[0]["f1_macro"]
     best_pipeline = trained_pipelines[best_model_name]
 
+    print("\nBaseline model comparison complete.")
+    print(f"Best model with default hyperparameters: {best_model_name}")
+
+    # Hyperparameter tuning for the project's chosen final model.
+    default_hgb_metrics = next(
+        m for m in all_metrics if m["model"] == "hist_gradient_boosting"
+    )
+
+    search = tune_hist_gradient_boosting(preprocessor, X_train, y_train)
+    tuned_pipeline = search.best_estimator_
+    tuned_metrics = evaluate_model(
+        "hist_gradient_boosting_tuned", tuned_pipeline, X_test, y_test
+    )
+
+    save_confusion_matrix("hist_gradient_boosting_tuned", tuned_pipeline, X_test, y_test)
+    save_roc_curve("hist_gradient_boosting_tuned", tuned_pipeline, X_test, y_test)
+
+    comparison_path, best_params_path = save_tuning_results(
+        search, default_hgb_metrics, tuned_metrics
+    )
+
+    print("\nHyperparameter tuning complete.")
+    print(f"Before/after comparison saved to: {comparison_path}")
+    print(f"Best hyperparameters saved to: {best_params_path}")
+    print(f"Default HGB macro F1: {default_hgb_metrics['f1_macro']:.4f}")
+    print(f"Tuned HGB macro F1:   {tuned_metrics['f1_macro']:.4f}")
+
+    final_pipeline = best_pipeline
+    final_model_name = best_model_name
+    if tuned_metrics["f1_macro"] >= best_model_macro_f1:
+        final_pipeline = tuned_pipeline
+        final_model_name = "hist_gradient_boosting_tuned"
+
     best_model_path = MODELS_DIR / "best_model.joblib"
-    joblib.dump(best_pipeline, best_model_path)
+    joblib.dump(final_pipeline, best_model_path)
 
     print("\nModel training complete.")
     print(f"Metrics saved to: {metrics_path}")
-    print(f"Best model: {best_model_name}")
-    print(f"Best model saved locally to: {best_model_path}")
+    print(f"Final selected model: {final_model_name}")
+    print(f"Final model saved locally to: {best_model_path}")
 
 
 if __name__ == "__main__":

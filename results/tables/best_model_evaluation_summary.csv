@@ -1,2 +1,2 @@
 accuracy,balanced_accuracy,precision_priority,recall_priority,f1_priority,f1_macro,roc_auc
-0.9586,0.8544,0.9657,0.9885,0.9769,0.8859,0.9688
+0.9602,0.8634,0.9679,0.9881,0.9779,0.8918,0.9704

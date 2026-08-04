@@ -417,9 +417,9 @@ The best-performing model was:
 Hist Gradient Boosting
 ```
 
-Hist Gradient Boosting was selected as the final model because it achieved the highest macro F1-score and ROC-AUC among the non-baseline models, while also maintaining very high recall for retrofit-priority dwellings. Although Random Forest achieved slightly higher balanced accuracy, Hist Gradient Boosting provided the strongest overall trade-off for this project.
+Hist Gradient Boosting was selected as the final model because it achieved the highest macro F1-score and ROC-AUC among the non-baseline models, while also maintaining very high recall for retrofit-priority dwellings. Although Random Forest achieved slightly higher balanced accuracy, Hist Gradient Boosting provided the strongest overall trade-off for this project. Its hyperparameters were then tuned (see below); the tuned version is the model actually shipped in this repository.
 
-Full model comparison:
+Full model comparison (default hyperparameters, used for model-family selection):
 
 | Model                  | Accuracy | Balanced Accuracy | Priority Recall | Macro F1-score | ROC-AUC |
 | ---------------------- | -------: | ----------------: | --------------: | -------------: | ------: |
@@ -429,21 +429,58 @@ Full model comparison:
 | Random Forest          |   0.9556 |            0.8748 |          0.9787 |         0.8849 |  0.9667 |
 | Hist Gradient Boosting |   0.9586 |            0.8544 |          0.9885 |         0.8859 |  0.9688 |
 
-Final best-model performance:
-
-| Metric                      |  Value |
-| --------------------------- | -----: |
-| Accuracy                    | 0.9586 |
-| Balanced accuracy           | 0.8544 |
-| Retrofit-priority precision | 0.9657 |
-| Retrofit-priority recall    | 0.9885 |
-| Retrofit-priority F1-score  | 0.9769 |
-| Macro F1-score              | 0.8859 |
-| ROC-AUC                     | 0.9688 |
-
 The dummy majority-class baseline achieved high accuracy because most dwellings in the dataset are labelled as retrofit priority. However, its balanced accuracy and ROC-AUC are both 0.5000, showing that it has no real discrimination ability. This demonstrates why accuracy alone is misleading for this imbalanced classification task.
 
 The machine-learning models substantially improve balanced accuracy, macro F1-score, and ROC-AUC compared with the dummy baseline. This suggests that the models learn meaningful relationships between dwelling characteristics and retrofit-priority status.
+
+### Hyperparameter Tuning
+
+Implemented in `tune_hist_gradient_boosting()` in [`src/train_models.py`](src/train_models.py).
+
+Once Hist Gradient Boosting was selected as the best-performing model family (using its default hyperparameters above), it was further tuned with `RandomizedSearchCV`:
+
+* 25 randomly sampled hyperparameter candidates;
+* 5-fold stratified cross-validation on the training split (80,000 rows);
+* scored by macro F1, consistent with the metric used for model-family selection;
+* search space: `learning_rate` (log-uniform, 0.01-0.3), `max_iter` (100-400), `max_leaf_nodes` (15-127), `min_samples_leaf` (10-99), `l2_regularization` (0-2).
+
+Best hyperparameters found (best CV macro F1 = 0.8872):
+
+| Hyperparameter     |     Best Value |
+| ------------------- | --------------: |
+| `learning_rate`     |           0.138 |
+| `max_iter`           |             360 |
+| `max_leaf_nodes`     |             120 |
+| `min_samples_leaf`   |              50 |
+| `l2_regularization`  |            1.458 |
+
+Before vs. after tuning, evaluated on the same held-out test set:
+
+| Metric                      | Default | Tuned  |
+| ---------------------------- | ------: | -----: |
+| Accuracy                    |  0.9586 | 0.9602 |
+| Balanced accuracy           |  0.8544 | 0.8634 |
+| Retrofit-priority precision |  0.9657 | 0.9679 |
+| Retrofit-priority recall    |  0.9885 | 0.9881 |
+| Retrofit-priority F1-score  |  0.9769 | 0.9779 |
+| Macro F1-score              |  0.8859 | 0.8918 |
+| ROC-AUC                     |  0.9688 | 0.9704 |
+
+Full results: [`results/tables/hgb_tuning_before_after.csv`](results/tables/hgb_tuning_before_after.csv) and [`results/tables/hgb_best_params.csv`](results/tables/hgb_best_params.csv).
+
+Tuning improved every metric except retrofit-priority recall, which dropped marginally (0.9885 to 0.9881, a 4-in-10,000 change). Balanced accuracy showed the largest gain (+0.009), meaning the tuned model is somewhat better at avoiding false positives on the minority (not-priority) class without sacrificing the model's high sensitivity to retrofit-priority dwellings. Because the tuned model is at least as good as the default on every metric that matters for this project, it replaces the default-hyperparameter model as the final saved pipeline (`models/best_model.joblib`) used throughout the rest of this project, including the explainability analysis below.
+
+Final best-model performance (tuned Hist Gradient Boosting):
+
+| Metric                      |  Value |
+| --------------------------- | -----: |
+| Accuracy                    | 0.9602 |
+| Balanced accuracy           | 0.8634 |
+| Retrofit-priority precision | 0.9679 |
+| Retrofit-priority recall    | 0.9881 |
+| Retrofit-priority F1-score  | 0.9779 |
+| Macro F1-score              | 0.8918 |
+| ROC-AUC                     | 0.9704 |
 
 ### Model Comparison by Macro F1-Score
 
@@ -474,20 +511,20 @@ Permutation importance measures how much the model performance decreases when th
 
 This method was chosen because it is model-agnostic and can be applied to the final trained pipeline without needing to inspect model-specific internal parameters.
 
-Top 10 features by permutation importance:
+Top 10 features by permutation importance (computed on the final tuned model):
 
-| Rank | Feature                   | Interpretation                                                                                  |
-| ---: | ------------------------- | ----------------------------------------------------------------------------------------------- |
-|    1 | `ground_floor_area`       | Larger or smaller dwelling size affects heating demand and energy performance.                  |
-|    2 | `u_value_window`          | Window thermal transmittance affects heat loss through glazing.                                 |
-|    3 | `year_of_construction`    | Construction period is linked to building standards and insulation quality.                     |
-|    4 | `u_value_wall`            | Wall thermal performance affects heat loss through the building envelope.                       |
-|    5 | `main_water_heating_fuel` | Water-heating fuel type is related to energy-system efficiency.                                 |
-|    6 | `u_value_roof`            | Roof thermal performance affects heat loss through the roof or attic.                           |
-|    7 | `wall_area`               | Larger wall area can increase total envelope heat loss.                                         |
-|    8 | `u_value_floor`           | Floor thermal performance affects heat loss through floors.                                     |
-|    9 | `dwelling_type`           | Detached, semi-detached, apartment, and other dwelling types have different heat-loss patterns. |
-|   10 | `floor_area`              | Floor area represents building size and contributes to energy-demand differences.               |
+| Rank | Feature                    | Interpretation                                                                                  |
+| ---: | --------------------------- | ------------------------------------------------------------------------------------------------ |
+|    1 | `ground_floor_area`         | Larger or smaller dwelling size affects heating demand and energy performance.                  |
+|    2 | `u_value_window`            | Window thermal transmittance affects heat loss through glazing.                                 |
+|    3 | `year_of_construction`      | Construction period is linked to building standards and insulation quality.                     |
+|    4 | `u_value_wall`               | Wall thermal performance affects heat loss through the building envelope.                       |
+|    5 | `main_water_heating_fuel`    | Water-heating fuel type is related to energy-system efficiency.                                 |
+|    6 | `u_value_roof`               | Roof thermal performance affects heat loss through the roof or attic.                           |
+|    7 | `u_value_floor`              | Floor thermal performance affects heat loss through floors.                                     |
+|    8 | `wall_area`                  | Larger wall area can increase total envelope heat loss.                                         |
+|    9 | `floor_area`                 | Floor area represents building size and contributes to energy-demand differences.               |
+|   10 | `main_space_heating_fuel`    | Space-heating fuel type is related to energy-system efficiency and emissions.                   |
 
 These features are physically meaningful because they relate to dwelling size, construction age, heat loss through the building envelope, heating systems, and dwelling form.
 
@@ -505,20 +542,20 @@ In addition to permutation importance, the project uses SHAP (SHapley Additive e
 
 SHAP values were computed with `TreeExplainer` on a stratified sample of 2,000 test-set rows. Because the preprocessing pipeline one-hot encodes categorical columns, SHAP values are computed on the encoded matrix and then mapped back to original feature names: one-hot columns belonging to the same categorical feature (e.g. `dwelling_type_Detached house`, `dwelling_type_Semi-detached house`, ...) are summed to a single mean absolute SHAP value per original feature, and numeric features are shown with their original, unscaled values (e.g. real U-values and m² areas) rather than the standardised values the model actually sees. This keeps the SHAP outputs directly comparable with the permutation importance table above, which also operates on original feature columns.
 
-Top 10 features by mean absolute SHAP value:
+Top 10 features by mean absolute SHAP value (computed on the final tuned model):
 
-| Rank | Feature                   | Mean \|SHAP\| |
-| ---: | -------------------------- | ------------: |
-|    1 | `u_value_window`           |         0.720 |
-|    2 | `ground_floor_area`        |         0.593 |
-|    3 | `u_value_wall`              |         0.541 |
-|    4 | `year_of_construction`      |         0.540 |
-|    5 | `u_value_roof`              |         0.371 |
-|    6 | `main_water_heating_fuel`   |         0.241 |
-|    7 | `u_value_floor`             |         0.232 |
-|    8 | `wall_area`                 |         0.186 |
-|    9 | `volume`                    |         0.179 |
-|   10 | `dwelling_type`             |         0.175 |
+| Rank | Feature                    | Mean \|SHAP\| |
+| ---: | --------------------------- | ------------: |
+|    1 | `u_value_window`            |          0.744 |
+|    2 | `year_of_construction`      |          0.689 |
+|    3 | `ground_floor_area`         |          0.637 |
+|    4 | `u_value_wall`               |          0.563 |
+|    5 | `u_value_roof`               |          0.379 |
+|    6 | `u_value_floor`              |          0.288 |
+|    7 | `main_water_heating_fuel`    |          0.241 |
+|    8 | `county_name`                |          0.188 |
+|    9 | `wall_area`                  |          0.184 |
+|   10 | `volume`                     |          0.173 |
 
 Full results: [`results/tables/shap_feature_importance.csv`](results/tables/shap_feature_importance.csv) and [`results/tables/shap_vs_permutation_importance.csv`](results/tables/shap_vs_permutation_importance.csv).
 
@@ -536,17 +573,17 @@ Two individual predictions were explained with SHAP waterfall plots:
 
 ![SHAP Waterfall Confident](results/figures/shap_waterfall_confident_priority.png)
 
-This dwelling has very poor U-values across roof (1.66), wall (1.92), and window (5.66) — all far worse than modern building-regulation standards — which together push the prediction strongly toward retrofit priority.
+This is a dwelling built in 1900 with very poor U-values across wall (1.71), roof (1.65), window (3.73), and door (3.39) — all far worse than modern building-regulation standards — which together push the prediction strongly toward retrofit priority.
 
-**Borderline prediction (P = 0.473):**
+**Borderline prediction (P = 0.500):**
 
 ![SHAP Waterfall Borderline](results/figures/shap_waterfall_borderline.png)
 
-This dwelling shows conflicting evidence: strong (low) U-values for window, wall, and roof push toward not-priority, but a comparatively recent-but-not-modern construction year (1982) pushes slightly the other way, leaving the model close to the 0.5 decision boundary.
+This dwelling shows conflicting evidence: it is a large home (302 m² ground floor area, 1,518 m³ volume) with generally good U-values (window 2.2, wall 0.37, floor 0.34, roof 0.21), which pushes toward not-priority. However its larger-than-typical wall and roof areas and a comparatively recent (2005) construction year push slightly the other way, leaving the prediction almost exactly on the 0.5 decision boundary.
 
 #### SHAP vs Permutation Importance
 
-The two methods agree closely: 9 of the top 10 features are shared between them (`u_value_window`, `ground_floor_area`, `u_value_wall`, `year_of_construction`, `u_value_roof`, `main_water_heating_fuel`, `u_value_floor`, `wall_area`, `dwelling_type`), with only `floor_area` (permutation, rank 10) swapped for `volume` (SHAP, rank 9). The two methods disagree mainly on ranking order rather than which features matter — permutation importance ranks `ground_floor_area` first (largest drop in macro F1 when shuffled), while SHAP ranks `u_value_window` first (largest average contribution to individual predictions). This is expected: permutation importance measures the effect on overall model *performance*, while SHAP measures the average magnitude of each feature's contribution to individual model *outputs*, so a feature can be highly influential on individual predictions without being the single most damaging feature to shuffle, and vice versa. The consistency between the two independent methods increases confidence that these dwelling-envelope and construction-year features are genuinely driving the model, rather than being an artefact of one particular importance method.
+The two methods agree closely: 8 of the top 10 features are shared between them (`ground_floor_area`, `u_value_window`, `year_of_construction`, `u_value_wall`, `main_water_heating_fuel`, `u_value_roof`, `u_value_floor`, `wall_area`). SHAP additionally surfaces `county_name` and `volume` in its top 10, while permutation importance instead surfaces `floor_area` and `main_space_heating_fuel`. The two methods disagree mainly on ranking order rather than which features matter — permutation importance ranks `ground_floor_area` first (largest drop in macro F1 when shuffled), while SHAP ranks `u_value_window` first (largest average contribution to individual predictions). This is expected: permutation importance measures the effect on overall model *performance*, while SHAP measures the average magnitude of each feature's contribution to individual model *outputs*, so a feature can be highly influential on individual predictions without being the single most damaging feature to shuffle, and vice versa. The consistency between the two independent methods increases confidence that these dwelling-envelope and construction-year features are genuinely driving the model, rather than being an artefact of one particular importance method.
 
 ---
 
@@ -556,7 +593,7 @@ The results suggest that BER data can be used to classify retrofit-priority dwel
 
 The best model, Hist Gradient Boosting, achieved high recall for retrofit-priority dwellings. This is important because a retrofit-prioritisation model should identify as many poor-performing dwellings as possible.
 
-The explainability analysis showed that the most influential features are related to building size, thermal transmittance, construction year, heating fuel, dwelling type, and envelope area. These variables are consistent with known building-energy principles.
+The explainability analysis showed that the most influential features are related to building size, thermal transmittance, construction year, heating fuel, and envelope area. These variables are consistent with known building-energy principles.
 
 ---
 
@@ -666,6 +703,8 @@ results/tables/model_metrics_rounded.csv
 results/tables/best_model_evaluation_summary.csv
 results/tables/best_model_classification_report.csv
 results/tables/best_model_confusion_matrix.csv
+results/tables/hgb_tuning_before_after.csv
+results/tables/hgb_best_params.csv
 results/tables/permutation_importance.csv
 results/tables/shap_feature_importance.csv
 results/tables/shap_vs_permutation_importance.csv
@@ -687,6 +726,8 @@ results/figures/u_value_roof_by_target.png
 results/figures/model_comparison_macro_f1.png
 results/figures/model_comparison_roc_auc.png
 results/figures/model_comparison_priority_recall.png
+results/figures/confusion_matrix_hist_gradient_boosting_tuned.png
+results/figures/roc_curve_hist_gradient_boosting_tuned.png
 results/figures/permutation_importance_top_features.png
 results/figures/shap_summary_beeswarm.png
 results/figures/shap_waterfall_confident_priority.png

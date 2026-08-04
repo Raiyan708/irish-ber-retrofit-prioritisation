@@ -1,7 +1,7 @@
 Key Results Summary
 ===================
 
-Best model by macro F1-score: Hist Gradient Boosting
+Best model family by macro F1-score (default hyperparameters): Hist Gradient Boosting
 Macro F1-score: 0.8859
 Accuracy: 0.9586
 Balanced accuracy: 0.8544
@@ -12,6 +12,13 @@ Best model by ROC-AUC: Hist Gradient Boosting with ROC-AUC = 0.9688
 
 Best model by priority-class recall: Dummy Baseline with recall = 1.0
 
+Final model (Hist Gradient Boosting, tuned via RandomizedSearchCV):
+Macro F1-score: 0.8918
+Accuracy: 0.9602
+Balanced accuracy: 0.8634
+Priority-class recall: 0.9881
+ROC-AUC: 0.9704
+
 Top 10 features by permutation importance:
 1. ground_floor_area
 2. u_value_window
@@ -19,10 +26,10 @@ Top 10 features by permutation importance:
 4. u_value_wall
 5. main_water_heating_fuel
 6. u_value_roof
-7. wall_area
-8. u_value_floor
-9. dwelling_type
-10. floor_area
+7. u_value_floor
+8. wall_area
+9. floor_area
+10. main_space_heating_fuel
 
 Interpretation:
 The strongest predictors are mainly related to building size, U-values, construction year, heating fuel, wall area and glazing. This is consistent with building-energy principles because heat loss, dwelling size, age and heating systems are directly linked to residential energy performance.

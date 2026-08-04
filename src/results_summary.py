@@ -44,6 +44,17 @@ def load_metrics():
     return metrics
 
 
+def load_tuned_metrics():
+    """Load the tuned Hist Gradient Boosting metrics, if available."""
+    tuning_path = RESULTS_TABLES_DIR / "hgb_tuning_before_after.csv"
+
+    if not tuning_path.exists():
+        return None
+
+    tuning = pd.read_csv(tuning_path)
+    return tuning[tuning["model"] == "hist_gradient_boosting_tuned"].iloc[0]
+
+
 def load_importance():
     """Load permutation importance table."""
     importance_path = RESULTS_TABLES_DIR / "permutation_importance.csv"
@@ -142,7 +153,7 @@ def save_all_model_comparison_plots(metrics):
     )
 
 
-def save_key_results_summary(metrics_rounded, top_features):
+def save_key_results_summary(metrics_rounded, top_features, tuned_metrics=None):
     """Save a short text summary of the most important results."""
     best_by_macro_f1 = metrics_rounded.sort_values("f1_macro", ascending=False).iloc[0]
     best_by_auc = metrics_rounded.sort_values("roc_auc", ascending=False).iloc[0]
@@ -154,7 +165,8 @@ def save_key_results_summary(metrics_rounded, top_features):
         "Key Results Summary",
         "===================",
         "",
-        f"Best model by macro F1-score: {best_by_macro_f1['model_display']}",
+        f"Best model family by macro F1-score (default hyperparameters): "
+        f"{best_by_macro_f1['model_display']}",
         f"Macro F1-score: {best_by_macro_f1['f1_macro']}",
         f"Accuracy: {best_by_macro_f1['accuracy']}",
         f"Balanced accuracy: {best_by_macro_f1['balanced_accuracy']}",
@@ -167,8 +179,22 @@ def save_key_results_summary(metrics_rounded, top_features):
         f"Best model by priority-class recall: {best_by_recall['model_display']} "
         f"with recall = {best_by_recall['recall_priority']}",
         "",
-        "Top 10 features by permutation importance:",
     ]
+
+    if tuned_metrics is not None:
+        summary_lines.extend(
+            [
+                "Final model (Hist Gradient Boosting, tuned via RandomizedSearchCV):",
+                f"Macro F1-score: {round(tuned_metrics['f1_macro'], 4)}",
+                f"Accuracy: {round(tuned_metrics['accuracy'], 4)}",
+                f"Balanced accuracy: {round(tuned_metrics['balanced_accuracy'], 4)}",
+                f"Priority-class recall: {round(tuned_metrics['recall_priority'], 4)}",
+                f"ROC-AUC: {round(tuned_metrics['roc_auc'], 4)}",
+                "",
+            ]
+        )
+
+    summary_lines.append("Top 10 features by permutation importance:")
 
     for idx, feature in enumerate(top_feature_names, start=1):
         summary_lines.append(f"{idx}. {feature}")
@@ -199,12 +225,13 @@ def main():
 
     metrics = load_metrics()
     importance = load_importance()
+    tuned_metrics = load_tuned_metrics()
 
     metrics_rounded, top_features = save_rounded_tables(metrics, importance)
 
     save_all_model_comparison_plots(metrics)
 
-    save_key_results_summary(metrics_rounded, top_features)
+    save_key_results_summary(metrics_rounded, top_features, tuned_metrics)
 
     print("Results summary complete.")
     print(f"Rounded metrics saved to: {RESULTS_TABLES_DIR / 'model_metrics_rounded.csv'}")
