@@ -131,6 +131,29 @@ Because the target is imbalanced, the project evaluates models using balanced ac
 
 ---
 
+## Threshold Justification: Why B2
+
+The BER scale bands a dwelling's primary energy demand (kWh/m²/yr) from A1 (most efficient) to G (least efficient). The bands immediately around the chosen cutoff are:
+
+| Band | Primary energy demand (kWh/m²/yr) |
+| ---- | ---------------------------------: |
+| B1   |                             75-100 |
+| B2   |                            100-125 |
+| B3   |                            125-150 |
+
+B2 was chosen as the retrofit-priority cutoff for two reasons, both tied to existing SEAI guidance rather than an arbitrary modelling choice:
+
+1. **It is SEAI's own recommended minimum standard.** SEAI advises homeowners upgrading an older home to aim for a minimum BER of B2, treating it as the benchmark for an energy-efficient, comfortable home.
+2. **It is the explicit target band in national retrofit policy.** Ireland's Climate Action Plan and the National Retrofit Plan set a target of upgrading 500,000 existing homes to a BER of B2 (or "cost-optimal") by 2030, with an interim target of 120,000 homes by the end of 2025. B2 is therefore not just a technical rating band — it is the specific bar Irish retrofit policy is measured against.
+
+Defining `retrofit_priority = 0` for B2-or-better and `retrofit_priority = 1` for worse-than-B2 means the model's binary label lines up directly with this policy benchmark: a dwelling the model flags as "retrofit priority" is, by definition, a dwelling that has not yet reached the national retrofit target. This makes the model's output directly interpretable against a real, publicly stated policy goal, rather than an arbitrary statistical split of the data.
+
+This is a simplification worth being explicit about: the underlying energy-performance measure is continuous (kWh/m²/yr), and collapsing it to a single binary cutoff discards information about how far below B2 a dwelling falls (e.g. a D1 dwelling and a G dwelling are both labelled "retrofit priority" despite very different severity). This trade-off, and possible extensions such as testing alternative or multi-level thresholds, is discussed further in [Limitations](#limitations) and [Future Work](#future-work).
+
+Sources: [SEAI – B2 Home Energy Rating](https://www.seai.ie/about/tools/b2-rated-home), [Government of Ireland – National Retrofit Plan](https://www.gov.ie/en/department-of-climate-energy-and-the-environment/publications/national-retrofit-plan/), [Comptroller and Auditor General – Performance of Certain Residential Retrofit Schemes (2023)](https://www.audit.gov.ie/en/find-report/publications/2023/8-performance-of-certain-residential-retrofit-schemes.pdf).
+
+---
+
 ## Project Workflow
 
 ```text
@@ -807,9 +830,11 @@ University College Dublin
 
 ## References
 
-* Sustainable Energy Authority of Ireland. [Building Energy Rating information](https://www.seai.ie/ber) and [BER Research Tool](https://ndber.seai.ie/BERResearchTool/ber/search.aspx).
+* Sustainable Energy Authority of Ireland. [Building Energy Rating information](https://www.seai.ie/ber), [BER Research Tool](https://ndber.seai.ie/BERResearchTool/ber/search.aspx), and [B2 Home Energy Rating](https://www.seai.ie/about/tools/b2-rated-home).
 
 * Government of Ireland. [National Retrofit Plan](https://www.gov.ie/en/department-of-climate-energy-and-the-environment/publications/national-retrofit-plan/).
+
+* Office of the Comptroller and Auditor General (2023). [Performance of Certain Residential Retrofit Schemes](https://www.audit.gov.ie/en/find-report/publications/2023/8-performance-of-certain-residential-retrofit-schemes.pdf).
 
 * Ahern, C., Raushan, K., and Essien-Thompson, E. (2024). [*Irish Building Energy Rating Database - (Cleaned 05/10/2023)*](https://data.mendeley.com/datasets/yhgdzfpnym/1). Mendeley Data, Version 1. DOI: [10.17632/yhgdzfpnym.1](https://doi.org/10.17632/yhgdzfpnym.1).
 
