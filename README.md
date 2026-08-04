@@ -482,6 +482,30 @@ Final best-model performance (tuned Hist Gradient Boosting):
 | Macro F1-score              | 0.8918 |
 | ROC-AUC                     | 0.9704 |
 
+### Cross-Validation (5-Fold)
+
+Implemented in `run_cross_validation()` in [`src/evaluate_models.py`](src/evaluate_models.py).
+
+The table above reports performance on a single 80/20 stratified train-test split, which is how the final model is actually evaluated for deployment (trained once on the training rows, scored once on rows it has never seen). A single split is simple and matches how the model would really be trained and shipped, but it only gives one sample of performance, so it can't show how much that performance might vary with a different random split of the data.
+
+To check that result isn't a lucky (or unlucky) split, 5-fold stratified cross-validation was also run, using the same tuned hyperparameters, on the training portion of the data only (80,000 rows; the held-out test set was kept completely untouched for the single-split evaluation above). Each fold trains a fresh copy of the full pipeline (preprocessing + Hist Gradient Boosting) from scratch and evaluates it on the remaining fold.
+
+5-fold cross-validation results (mean ± std across folds):
+
+| Metric                      |   Mean | Std    |
+| ---------------------------- | -----: | -----: |
+| Accuracy                    | 0.9589 | 0.0015 |
+| Balanced accuracy           | 0.8521 | 0.0073 |
+| Retrofit-priority precision | 0.9651 | 0.0018 |
+| Retrofit-priority recall    | 0.9896 | 0.0017 |
+| Retrofit-priority F1-score  | 0.9772 | 0.0008 |
+| Macro F1-score              | 0.8862 | 0.0047 |
+| ROC-AUC                     | 0.9673 | 0.0023 |
+
+Full results: [`results/tables/cv_5fold_summary.csv`](results/tables/cv_5fold_summary.csv) (mean/std) and [`results/tables/cv_5fold_raw_scores.csv`](results/tables/cv_5fold_raw_scores.csv) (per-fold scores).
+
+The cross-validated means are close to the single-split test metrics (within roughly 0.01-0.02 on every metric) and the standard deviations are small (all under 0.01), so the single-split test performance reported above is not an artefact of a favourable split. Both are shown because they answer different questions: the single-split test set reflects the actual final model's performance on genuinely unseen data, while cross-validation reflects the stability of Hist Gradient Boosting with these hyperparameters across different random partitions of the training data.
+
 ### Model Comparison by Macro F1-Score
 
 ![Model Comparison Macro F1](results/figures/model_comparison_macro_f1.png)
@@ -705,6 +729,8 @@ results/tables/best_model_classification_report.csv
 results/tables/best_model_confusion_matrix.csv
 results/tables/hgb_tuning_before_after.csv
 results/tables/hgb_best_params.csv
+results/tables/cv_5fold_summary.csv
+results/tables/cv_5fold_raw_scores.csv
 results/tables/permutation_importance.csv
 results/tables/shap_feature_importance.csv
 results/tables/shap_vs_permutation_importance.csv

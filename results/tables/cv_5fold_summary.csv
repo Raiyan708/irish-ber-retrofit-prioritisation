@@ -1,0 +1,8 @@
+metric,mean,std
+accuracy,0.9589,0.0015
+balanced_accuracy,0.8521,0.0073
+precision_priority,0.9651,0.0018
+recall_priority,0.9896,0.0017
+f1_priority,0.9772,0.0008
+f1_macro,0.8862,0.0047
+roc_auc,0.9673,0.0023
