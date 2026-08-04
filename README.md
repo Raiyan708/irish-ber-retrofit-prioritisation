@@ -818,7 +818,9 @@ See [Deployment](#deployment) below for steps to deploy this on Streamlit Commun
 
 ## Deployment
 
-The repository is deployment-ready as-is: `app.py` sits at the repo root, `requirements.txt` lists every dependency the app needs, and the files the app actually reads at runtime (`models/best_model.joblib`, and the small CSVs/PNGs under `results/tables` and `results/figures`) are all committed to git. The large raw and processed datasets are not needed by the app and stay out of the repo via `.gitignore`.
+The repository is deployment-ready: `app.py` sits at the repo root, `requirements.txt` lists every dependency the app needs, and the files the app actually reads at runtime (`models/best_model.joblib`, and the small CSVs/PNGs under `results/tables` and `results/figures`) are all committed to git. The large raw and processed datasets are not needed by the app and stay out of the repo via `.gitignore`.
+
+**Pinned versions matter here.** `models/best_model.joblib` is a pickled object, and scikit-learn's internal representation of fitted objects (like `ColumnTransformer`) has changed between versions in ways that break loading a pickle saved by an older version with a newer one. `requirements.txt` pins `scikit-learn==1.6.1` and `joblib==1.4.2` to match the exact versions the model was saved with, and [`runtime.txt`](runtime.txt) pins the Python version to `3.11` so Streamlit Cloud's default Python (which can be a very recent release without full wheel coverage for the ML stack) doesn't get used instead. If you ever retrain and re-save the model with different library versions, update these pins to match.
 
 To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
 
@@ -829,11 +831,12 @@ To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
    * **Repository**: `ACM40960/Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data`
    * **Branch**: `main`
    * **Main file path**: `app.py`
-5. (Optional) Under **"Advanced settings"**, pick a Python version if you want to match the one used for development (`Python 3.13.5`, per [How to Run the Project](#how-to-run-the-project)) — Streamlit Cloud will otherwise pick a recent default, which should also work since `requirements.txt` doesn't pin exact versions.
-6. Click **"Deploy"**. Streamlit Cloud installs `requirements.txt` and starts the app; the first build typically takes a few minutes.
-7. Once live, the app gets a URL like `https://<app-name>.streamlit.app`. You can customise the subdomain from the app's settings menu.
+5. Click **"Deploy"**. Streamlit Cloud reads `runtime.txt` and `requirements.txt` and starts the app; the first build typically takes a few minutes.
+6. Once live, the app gets a URL like `https://<app-name>.streamlit.app`. You can customise the subdomain from the app's settings menu.
 
-Any future push to `main` that touches `app.py`, `requirements.txt`, `models/best_model.joblib`, or the `results/` folder will trigger Streamlit Cloud to automatically rebuild and redeploy.
+If an app was already deployed before `runtime.txt`/pinned versions were added, it needs a full reboot (not just a redeploy) to pick up the new Python version: open the app on Streamlit Cloud, click the **⋮** menu → **"Reboot app"**.
+
+Any future push to `main` that touches `app.py`, `requirements.txt`, `runtime.txt`, `models/best_model.joblib`, or the `results/` folder will trigger Streamlit Cloud to automatically rebuild and redeploy.
 
 ---
 
