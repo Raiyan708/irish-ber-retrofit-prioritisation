@@ -1,952 +1,324 @@
 # Explainable Machine Learning for Irish Residential Energy Retrofit Prioritisation Using BER Data
 
-## Project Overview
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://ml-retrofit-ber.streamlit.app)
+![Made with scikit-learn](https://img.shields.io/badge/model-Hist%20Gradient%20Boosting-orange)
 
-This project investigates whether Irish Building Energy Rating (BER) data can be used to identify residential dwellings that may require energy retrofit priority.
+**[🚀 Live Dashboard](https://ml-retrofit-ber.streamlit.app)** · **[📖 Full Methodology](docs/METHODOLOGY.md)** · **ACM40960, University College Dublin**
 
-The project develops a reproducible and explainable machine-learning pipeline that classifies dwellings into:
+An explainable machine-learning pipeline that predicts whether an Irish
+dwelling is an **energy-retrofit priority** from its Building Energy
+Rating (BER) data, and explains *why* using SHAP. Trained on 790K+ Irish
+dwellings, it reaches 96% accuracy / 0.97 ROC-AUC, and ships as a live,
+interactive dashboard — not just a notebook.
 
-* **Retrofit priority**
-* **Not retrofit priority**
-
-The target is based on BER rating:
-
-* Homes rated **B2 or better** are labelled as **not retrofit priority**.
-* Homes rated **worse than B2** are labelled as **retrofit priority**.
-
-This project is framed as a decision-support analysis for residential energy retrofit planning. It is not intended to replace official BER assessment, engineering inspection, or policy decision-making.
-
----
-
-## Research Question
-
-Can Irish BER data be used to predict residential retrofit priority, and can explainable machine learning identify the main dwelling characteristics associated with poor energy performance?
+Framed as decision support, not a replacement for an official BER
+assessment or professional retrofit inspection.
 
 ---
 
-## Mathematical Modelling Formulation
+## Table of Contents
 
-This project is formulated as a supervised binary classification problem.
+- [Quick Start](#quick-start)
+- [Dataset](#dataset)
+- [Target Definition — Why B2?](#target-definition-why-b2)
+- [Repository Structure](#repository-structure)
+- [Methodology](#methodology)
+- [Model Results](#model-results)
+- [Explainability](#explainability)
+- [Key Interpretation](#key-interpretation)
+- [Interactive Dashboard](#interactive-dashboard)
+- [Deploying Your Own Copy](#deploying-your-own-copy)
+- [Limitations](#limitations)
+- [Future Work](#future-work)
+- [Authors](#authors)
+- [License](#license)
+- [References](#references)
 
-For each dwelling `i`, the model observes a feature vector `x_i`, which contains physical, geographical, and heating-system characteristics such as dwelling type, county, year of construction, floor area, U-values, heating fuel, glazing percentage, and building-envelope areas.
+---
 
-The response variable is:
+## Quick Start
 
-```text
-y_i = 1 if the dwelling is retrofit priority
-y_i = 0 otherwise
+```bash
+git clone https://github.com/ACM40960/Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data.git
+cd Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data
+python -m pip install -r requirements.txt
 ```
 
-The modelling objective is to learn a function:
+Then either try the model instantly (no data download needed — it loads
+the pre-trained pipeline already committed to this repo):
 
-```text
-f(x_i) -> y_i
+```bash
+streamlit run app.py
 ```
-For probabilistic classifiers, the model can also be interpreted as estimating the probability `P(y_i = 1 | x_i)`, where larger values indicate higher predicted retrofit-priority risk.
 
-that predicts whether a dwelling should be classified as retrofit priority based on its observed characteristics.
+...or reproduce the full pipeline from raw data. Download the [cleaned BER
+dataset](https://data.mendeley.com/datasets/yhgdzfpnym/1) from Mendeley,
+rename it `ber_cleaned_20231005.csv`, and place it at
+`data/raw/ber_cleaned_20231005.csv`, then:
 
-The problem is evaluated on a held-out test set using accuracy, balanced accuracy, macro F1-score, ROC-AUC, precision, recall, and confusion matrices. Because the target variable is imbalanced, balanced accuracy and macro F1-score are treated as more informative than accuracy alone.
+```bash
+python src/run_pipeline.py
+```
 
----
+This runs data cleaning → EDA → model training/tuning → evaluation →
+explainability → results summary end to end, regenerating everything
+under `results/` and `models/`. Individual stages can also be run
+separately — see [`src/run_pipeline.py`](src/run_pipeline.py) for the
+list, or the [Full Methodology](docs/METHODOLOGY.md) doc for the optional
+sample-size sensitivity check.
 
-## Motivation
-
-Residential energy efficiency is an important part of Ireland’s sustainability and climate-transition agenda. Many Irish homes differ in construction age, dwelling type, floor area, insulation quality, heating systems, glazing, and energy performance.
-
-Because it is not practical to retrofit all homes immediately, a data-driven approach can help explore which dwelling characteristics are most associated with poor energy performance.
-
-This project uses machine learning to predict retrofit-priority status and explain the main features influencing those predictions.
+Developed with **Python 3.13.5**; deployed with Python 3.11 (see
+[Deploying Your Own Copy](#deploying-your-own-copy)). Dependencies in
+[`requirements.txt`](requirements.txt).
 
 ---
 
 ## Dataset
 
-The project uses the cleaned Irish Building Energy Rating dataset:
+**Ahern, C., Raushan, K., and Essien-Thompson, E. (2024).** *Irish
+Building Energy Rating Database (Cleaned 05/10/2023)*. Mendeley Data,
+V1. [DOI: 10.17632/yhgdzfpnym.1](https://doi.org/10.17632/yhgdzfpnym.1)
 
-**Ahern, C., Raushan, K., and Essien-Thompson, E. (2024). *Irish Building Energy Rating Database - (Cleaned 05/10/2023)*. Mendeley Data, Version 1. DOI: 10.17632/yhgdzfpnym.1**
+After cleaning and a target-leakage audit: **790,389 dwellings, 22
+features** (county, dwelling type, construction year, floor area,
+wall/roof/floor/window/door U-values and areas, heating fuels, glazing %,
+volume). Full cleaning steps and the leakage-exclusion table are in
+[Full Methodology](docs/METHODOLOGY.md#data-cleaning).
 
-The dataset contains a cleaned pull from the Irish BER database dated 5 October 2023. The file used locally in this project is:
+The raw and processed data files are not committed to this repo (too
+large) — see [Quick Start](#quick-start) to reproduce them locally.
 
-```text
-BER (filtered and cleaned 20231005).csv
-```
-
-For coding consistency, the dataset file should be renamed locally as:
-
-```text
-ber_cleaned_20231005.csv
-```
-
-The raw dataset is not included in this GitHub repository because it is large. To reproduce the project, download the dataset separately from Mendeley Data and place it at:
-
-```text
-data/raw/ber_cleaned_20231005.csv
-```
-
-The processed modelling dataset is generated automatically by the cleaning pipeline and saved locally to:
-
-```text
-data/processed/ber_model_ready.csv
-```
-
-Both raw and processed data files are excluded from version control using `.gitignore`.
-
-After cleaning and target creation, the model-ready dataset contains:
-
-```text
-790,389 rows
-22 columns
-```
----
-
-## Target Definition
-
-The binary target variable is:
-
-```text
-retrofit_priority
-```
-
-The target is created from the `EnergyRating` column.
-
-```text
-retrofit_priority = 0
-if BER rating is A1, A2, A3, B1, or B2
-
-retrofit_priority = 1
-if BER rating is B3, C1, C2, C3, D1, D2, E1, E2, F, or G
-```
-
-This means homes worse than BER B2 are treated as retrofit-priority dwellings.
-
-Target distribution:
-
-```text
-Retrofit priority:     88.84%
-Not retrofit priority: 11.16%
-```
-
-Because the target is imbalanced, the project evaluates models using balanced accuracy, macro F1-score, ROC-AUC, precision, recall, and confusion matrices rather than accuracy alone.
+![BER Rating Distribution](results/figures/ber_rating_distribution.png)
 
 ---
 
-## Threshold Justification: Why B2
+## Target Definition — Why B2?
 
-The BER scale bands a dwelling's primary energy demand (kWh/m²/yr) from A1 (most efficient) to G (least efficient). The bands immediately around the chosen cutoff are:
+| Label                  | Condition        |
+| ----------------------- | ----------------- |
+| Not priority (`0`)      | BER **B2** or better |
+| Retrofit priority (`1`) | Worse than B2     |
 
-| Band | Primary energy demand (kWh/m²/yr) |
-| ---- | ---------------------------------: |
-| B1   |                             75-100 |
-| B2   |                            100-125 |
-| B3   |                            125-150 |
+Class balance: **88.8% priority vs. 11.2% not priority** — imbalanced, so
+balanced accuracy and macro F1 are used throughout, not raw accuracy.
 
-B2 was chosen as the retrofit-priority cutoff for two reasons, both tied to existing SEAI guidance rather than an arbitrary modelling choice:
+**B2 isn't an arbitrary cutoff.** It's SEAI's own recommended minimum
+retrofit standard, and the explicit target of Ireland's National Retrofit
+Plan — **500,000 homes to B2 by 2030**. A dwelling this model flags as
+"priority" is, by definition, one that hasn't yet met the national
+retrofit benchmark, so the model's output is interpretable against a
+real, publicly stated policy goal rather than an arbitrary statistical
+split.
 
-1. **It is SEAI's own recommended minimum standard.** SEAI advises homeowners upgrading an older home to aim for a minimum BER of B2, treating it as the benchmark for an energy-efficient, comfortable home.
-2. **It is the explicit target band in national retrofit policy.** Ireland's Climate Action Plan and the National Retrofit Plan set a target of upgrading 500,000 existing homes to a BER of B2 (or "cost-optimal") by 2030, with an interim target of 120,000 homes by the end of 2025. B2 is therefore not just a technical rating band — it is the specific bar Irish retrofit policy is measured against.
+This does simplify a continuous measure (kWh/m²/yr) to one cutoff — a D1
+dwelling and a G-rated dwelling both get labelled "priority" despite very
+different severity. See [Limitations](#limitations).
 
-Defining `retrofit_priority = 0` for B2-or-better and `retrofit_priority = 1` for worse-than-B2 means the model's binary label lines up directly with this policy benchmark: a dwelling the model flags as "retrofit priority" is, by definition, a dwelling that has not yet reached the national retrofit target. This makes the model's output directly interpretable against a real, publicly stated policy goal, rather than an arbitrary statistical split of the data.
-
-This is a simplification worth being explicit about: the underlying energy-performance measure is continuous (kWh/m²/yr), and collapsing it to a single binary cutoff discards information about how far below B2 a dwelling falls (e.g. a D1 dwelling and a G dwelling are both labelled "retrofit priority" despite very different severity). This trade-off, and possible extensions such as testing alternative or multi-level thresholds, is discussed further in [Limitations](#limitations) and [Future Work](#future-work).
-
-Sources: [SEAI – B2 Home Energy Rating](https://www.seai.ie/about/tools/b2-rated-home), [Government of Ireland – National Retrofit Plan](https://www.gov.ie/en/department-of-climate-energy-and-the-environment/publications/national-retrofit-plan/), [Comptroller and Auditor General – Performance of Certain Residential Retrofit Schemes (2023)](https://www.audit.gov.ie/en/find-report/publications/2023/8-performance-of-certain-residential-retrofit-schemes.pdf).
-
----
-
-## Project Workflow
-
-```text
-Raw BER data
-    ↓
-Data cleaning and quality checks
-    ↓
-Target creation
-    ↓
-Leakage audit and feature selection
-    ↓
-Exploratory data analysis
-    ↓
-Preprocessing pipeline
-    ↓
-Model training and baseline comparison
-    ↓
-Final model evaluation
-    ↓
-Explainability analysis
-    ↓
-Results summary
-```
+Sources: [SEAI – B2 Home Energy Rating](https://www.seai.ie/about/tools/b2-rated-home), [Government of Ireland – National Retrofit Plan](https://www.gov.ie/en/department-of-climate-energy-and-the-environment/publications/national-retrofit-plan/), [Comptroller and Auditor General (2023)](https://www.audit.gov.ie/en/find-report/publications/2023/8-performance-of-certain-residential-retrofit-schemes.pdf).
 
 ---
 
 ## Repository Structure
 
 ```text
-Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data/
-│
-├── README.md
-├── app.py
+├── README.md              ← you are here
+├── app.py                 ← Streamlit dashboard
 ├── requirements.txt
-├── .gitignore
-│
-├── data/
-│   ├── raw/
-│   └── processed/
-│
+├── LICENSE
+├── models/best_model.joblib   ← final trained pipeline (committed, ~1MB)
 ├── docs/
-│   ├── project_log.md
-│   ├── evaluation_notes.md
-│   └── leakage_notes.md
-│
-├── models/
-│   └── best_model.joblib
-│
-├── notebooks/
-│   └── 01_data_inspection.ipynb
-│
-├── reports/
-│   └── Literature_Review.pdf
-│
+│   ├── METHODOLOGY.md     ← full methodology & reproducibility notes
+│   └── images/            ← dashboard screenshots for this README
 ├── results/
-│   ├── figures/
-│   └── tables/
-│
+│   ├── figures/           ← all generated plots
+│   └── tables/            ← all generated metrics/audit tables
 └── src/
-    ├── config.py
-    ├── data_cleaning.py
-    ├── eda.py
-    ├── preprocessing.py
-    ├── train_models.py
-    ├── evaluate_models.py
-    ├── explainability.py
-    ├── results_summary.py
-    ├── sample_size_experiment.py
-    └── run_pipeline.py
+    ├── config.py, data_cleaning.py, eda.py, preprocessing.py
+    ├── train_models.py, evaluate_models.py, explainability.py
+    ├── results_summary.py, sample_size_experiment.py
+    └── run_pipeline.py    ← runs the full pipeline end to end
 ```
 
 ---
 
-## Tech Stack
-
-* Python
-* pandas
-* NumPy
-* scikit-learn
-* SHAP
-* Streamlit
-* matplotlib
-* seaborn
-* joblib
-* Jupyter Notebook
-* Git
-* GitHub
-
-No cloud tools such as AWS, Airflow, or SageMaker are required for this project. The project is published as a reproducible GitHub repository with an end-to-end local pipeline.
-
----
-
-## Data Cleaning
-
-The data-cleaning pipeline is implemented in:
+## Methodology
 
 ```text
-src/data_cleaning.py
+Data cleaning & leakage audit → EDA → Preprocessing (impute, scale,
+one-hot encode) → 5-model comparison → Hyperparameter tuning & 5-fold CV
+→ Explainability (permutation + SHAP) → Streamlit dashboard
 ```
 
-The cleaning stage performs the following steps:
+Five models were compared on a stratified 100K-row sample (80K train /
+20K test): a majority-class dummy baseline, Logistic Regression, Decision
+Tree, Random Forest, and Hist Gradient Boosting. Hist Gradient Boosting
+was selected and then tuned with `RandomizedSearchCV`, validated with
+5-fold CV, and checked against the full 790K-row dataset for sample-size
+sensitivity.
 
-1. Loads selected columns from the raw BER dataset.
-2. Renames columns into consistent snake_case format.
-3. Converts numerical fields into valid numeric types.
-4. Converts placeholder missing values such as blank strings, `NA`, `nan`, `None`, and similar values into proper missing values.
-5. Applies data-quality rules for:
-
-   * invalid construction years;
-   * invalid U-values;
-   * invalid physical area values;
-   * invalid glazing percentages;
-   * invalid volume values;
-   * invalid storey counts.
-6. Creates the binary `retrofit_priority` target.
-7. Removes target-leakage columns from the modelling dataset.
-8. Saves a model-ready dataset locally.
-9. Saves audit tables for cleaning, missingness, leakage, and selected-feature rationale.
-
-Important generated audit files:
-
-```text
-results/tables/cleaning_summary.csv
-results/tables/data_quality_audit.csv
-results/tables/leakage_audit.csv
-results/tables/selected_features_rationale.csv
-results/tables/missingness_after_cleaning.csv
-```
-
----
-
-## Leakage Handling
-
-Because the target is derived from BER rating, care was taken to avoid target leakage.
-
-The following columns were excluded from the modelling features:
-
-| Column                   | Decision           | Reason                                                           |
-| ------------------------ | ------------------ | ---------------------------------------------------------------- |
-| `EnergyRating`           | Target source only | Used to define `retrofit_priority`, then removed from predictors |
-| `BerRating`              | Dropped            | Numerical BER score closely determines the BER band              |
-| `CO2Rating`              | Dropped            | BER-related assessment output                                    |
-| `TotalCO2Emissions`      | Dropped            | Calculated energy-performance output                             |
-| `TotalPrimaryEnergyFact` | Dropped            | Calculated energy-performance output                             |
-| `MPCDERValue`            | Dropped            | Derived assessment value                                         |
-| `EPCDERValue`            | Dropped            | Derived assessment value                                         |
-
-This prevents the model from learning directly from variables that reveal the BER outcome.
-
----
-
-## Selected Modelling Features
-
-The model uses physical, dwelling-level, and heating-system variables such as:
-
-* county;
-* dwelling type;
-* year of construction;
-* rating type;
-* ground floor area;
-* wall, roof, floor, window, and door U-values;
-* wall, roof, floor, window, and door areas;
-* number of storeys;
-* main space-heating fuel;
-* main water-heating fuel;
-* thermal era;
-* glazing percentage;
-* volume.
-
-The derived feature `building_age` was not used because it is directly calculated from `year_of_construction`. To avoid redundant predictors and improve interpretability, the project keeps `year_of_construction` only.
-
----
-
-## Exploratory Data Analysis
-
-The EDA stage is implemented in:
-
-```text
-src/eda.py
-```
-
-It generates summary tables and figures to understand the dataset before modelling.
-
-Key EDA outputs include:
-
-* BER rating distribution;
-* retrofit-priority class distribution;
-* county distribution;
-* dwelling type distribution;
-* heating fuel distribution;
-* missingness summary;
-* construction year distribution;
-* ground floor area distribution;
-* priority rate by dwelling type;
-* priority rate by heating fuel;
-* numerical feature comparisons by target class.
-
-Example figures:
-
-### BER Rating Distribution
-
-![BER Rating Distribution](results/figures/ber_rating_distribution.png)
-
-### Retrofit Priority Class Distribution
-
-![Retrofit Priority Class Distribution](results/figures/target_distribution.png)
-
-### Top Missingness Rates
-
-![Top Missingness Rates](results/figures/top_missingness_model_ready.png)
-
-### Ground Floor Area by Retrofit-Priority Class
-
-![Ground Floor Area by Target](results/figures/ground_floor_area_by_target.png)
-
-### Year of Construction by Retrofit-Priority Class
-
-![Year of Construction by Target](results/figures/year_of_construction_by_target.png)
-
----
-
-## Machine-Learning Pipeline
-
-The machine-learning pipeline uses `scikit-learn` tools for reproducible preprocessing and modelling.
-
-Main files:
-
-```text
-src/preprocessing.py
-src/train_models.py
-src/evaluate_models.py
-```
-
-The preprocessing pipeline uses:
-
-* `ColumnTransformer`;
-* numerical imputation;
-* numerical scaling;
-* categorical imputation;
-* one-hot encoding;
-* stratified train-test splitting.
-
-A stratified sample of 100,000 rows is used for modelling. This keeps training computationally efficient while preserving the class distribution.
-
-The train-test split is:
-
-```text
-Training rows: 80,000
-Test rows:     20,000
-```
-
----
-
-## Models Used
-
-The project compares a dummy baseline with four machine-learning models:
-
-1. Dummy majority-class baseline
-2. Logistic Regression
-3. Decision Tree
-4. Random Forest
-5. Hist Gradient Boosting
-
-The dummy baseline is important because the target is imbalanced. Since most dwellings are retrofit priority, a naive model that always predicts the majority class can achieve high accuracy without learning meaningful patterns.
-
----
-
-## Evaluation Metrics
-
-The project uses:
-
-* accuracy;
-* balanced accuracy;
-* precision for retrofit-priority class;
-* recall for retrofit-priority class;
-* F1-score for retrofit-priority class;
-* macro F1-score;
-* ROC-AUC;
-* confusion matrix.
-
-Accuracy alone is not sufficient because the dataset is imbalanced. Macro F1-score, balanced accuracy, and ROC-AUC give a more reliable view of model performance.
+**Full write-up** (mathematical formulation, leakage-handling table,
+feature list, preprocessing detail) → [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
 
 ---
 
 ## Model Results
 
-The best-performing model was:
+| Metric                       |  Value |
+| ----------------------------- | -----: |
+| Accuracy                     | 0.9602 |
+| Balanced accuracy            | 0.8634 |
+| Retrofit-priority precision  | 0.9679 |
+| Retrofit-priority recall     | 0.9881 |
+| Macro F1-score               | 0.8918 |
+| ROC-AUC                      | 0.9704 |
 
-```text
-Hist Gradient Boosting
-```
+*Final model: Hist Gradient Boosting, tuned via `RandomizedSearchCV`,
+validated with 5-fold cross-validation (macro F1 = 0.886 ± 0.005, closely
+matching the test-set score — not a lucky split), and confirmed to hold
+(and improve slightly) on the full 790K-row dataset.*
 
-Hist Gradient Boosting was selected as the final model because it achieved the highest macro F1-score and ROC-AUC among the non-baseline models, while also maintaining very high recall for retrofit-priority dwellings. Although Random Forest achieved slightly higher balanced accuracy, Hist Gradient Boosting provided the strongest overall trade-off for this project. Its hyperparameters were then tuned (see below); the tuned version is the model actually shipped in this repository.
-
-Full model comparison (default hyperparameters, used for model-family selection):
-
-| Model                  | Accuracy | Balanced Accuracy | Priority Recall | Macro F1-score | ROC-AUC |
-| ---------------------- | -------: | ----------------: | --------------: | -------------: | ------: |
-| Dummy Baseline         |   0.8884 |            0.5000 |          1.0000 |         0.4705 |  0.5000 |
-| Logistic Regression    |   0.8896 |            0.8820 |          0.8917 |         0.7864 |  0.9564 |
-| Decision Tree          |   0.9112 |            0.8718 |          0.9224 |         0.8110 |  0.9000 |
-| Random Forest          |   0.9556 |            0.8748 |          0.9787 |         0.8849 |  0.9667 |
-| Hist Gradient Boosting |   0.9586 |            0.8544 |          0.9885 |         0.8859 |  0.9688 |
-
-The dummy majority-class baseline achieved high accuracy because most dwellings in the dataset are labelled as retrofit priority. However, its balanced accuracy and ROC-AUC are both 0.5000, showing that it has no real discrimination ability. This demonstrates why accuracy alone is misleading for this imbalanced classification task.
-
-The machine-learning models substantially improve balanced accuracy, macro F1-score, and ROC-AUC compared with the dummy baseline. This suggests that the models learn meaningful relationships between dwelling characteristics and retrofit-priority status.
-
-### Hyperparameter Tuning
-
-Implemented in `tune_hist_gradient_boosting()` in [`src/train_models.py`](src/train_models.py).
-
-Once Hist Gradient Boosting was selected as the best-performing model family (using its default hyperparameters above), it was further tuned with `RandomizedSearchCV`:
-
-* 25 randomly sampled hyperparameter candidates;
-* 5-fold stratified cross-validation on the training split (80,000 rows);
-* scored by macro F1, consistent with the metric used for model-family selection;
-* search space: `learning_rate` (log-uniform, 0.01-0.3), `max_iter` (100-400), `max_leaf_nodes` (15-127), `min_samples_leaf` (10-99), `l2_regularization` (0-2).
-
-Best hyperparameters found (best CV macro F1 = 0.8872):
-
-| Hyperparameter     |     Best Value |
-| ------------------- | --------------: |
-| `learning_rate`     |           0.138 |
-| `max_iter`           |             360 |
-| `max_leaf_nodes`     |             120 |
-| `min_samples_leaf`   |              50 |
-| `l2_regularization`  |            1.458 |
-
-Before vs. after tuning, evaluated on the same held-out test set:
-
-| Metric                      | Default | Tuned  |
-| ---------------------------- | ------: | -----: |
-| Accuracy                    |  0.9586 | 0.9602 |
-| Balanced accuracy           |  0.8544 | 0.8634 |
-| Retrofit-priority precision |  0.9657 | 0.9679 |
-| Retrofit-priority recall    |  0.9885 | 0.9881 |
-| Retrofit-priority F1-score  |  0.9769 | 0.9779 |
-| Macro F1-score              |  0.8859 | 0.8918 |
-| ROC-AUC                     |  0.9688 | 0.9704 |
-
-Full results: [`results/tables/hgb_tuning_before_after.csv`](results/tables/hgb_tuning_before_after.csv) and [`results/tables/hgb_best_params.csv`](results/tables/hgb_best_params.csv).
-
-Tuning improved every metric except retrofit-priority recall, which dropped marginally (0.9885 to 0.9881, a 4-in-10,000 change). Balanced accuracy showed the largest gain (+0.009), meaning the tuned model is somewhat better at avoiding false positives on the minority (not-priority) class without sacrificing the model's high sensitivity to retrofit-priority dwellings. Because the tuned model is at least as good as the default on every metric that matters for this project, it replaces the default-hyperparameter model as the final saved pipeline (`models/best_model.joblib`) used throughout the rest of this project, including the explainability analysis below.
-
-Final best-model performance (tuned Hist Gradient Boosting):
-
-| Metric                      |  Value |
-| --------------------------- | -----: |
-| Accuracy                    | 0.9602 |
-| Balanced accuracy           | 0.8634 |
-| Retrofit-priority precision | 0.9679 |
-| Retrofit-priority recall    | 0.9881 |
-| Retrofit-priority F1-score  | 0.9779 |
-| Macro F1-score              | 0.8918 |
-| ROC-AUC                     | 0.9704 |
-
-### Cross-Validation (5-Fold)
-
-Implemented in `run_cross_validation()` in [`src/evaluate_models.py`](src/evaluate_models.py).
-
-The table above reports performance on a single 80/20 stratified train-test split, which is how the final model is actually evaluated for deployment (trained once on the training rows, scored once on rows it has never seen). A single split is simple and matches how the model would really be trained and shipped, but it only gives one sample of performance, so it can't show how much that performance might vary with a different random split of the data.
-
-To check that result isn't a lucky (or unlucky) split, 5-fold stratified cross-validation was also run, using the same tuned hyperparameters, on the training portion of the data only (80,000 rows; the held-out test set was kept completely untouched for the single-split evaluation above). Each fold trains a fresh copy of the full pipeline (preprocessing + Hist Gradient Boosting) from scratch and evaluates it on the remaining fold.
-
-5-fold cross-validation results (mean ± std across folds):
-
-| Metric                      |   Mean | Std    |
-| ---------------------------- | -----: | -----: |
-| Accuracy                    | 0.9589 | 0.0015 |
-| Balanced accuracy           | 0.8521 | 0.0073 |
-| Retrofit-priority precision | 0.9651 | 0.0018 |
-| Retrofit-priority recall    | 0.9896 | 0.0017 |
-| Retrofit-priority F1-score  | 0.9772 | 0.0008 |
-| Macro F1-score              | 0.8862 | 0.0047 |
-| ROC-AUC                     | 0.9673 | 0.0023 |
-
-Full results: [`results/tables/cv_5fold_summary.csv`](results/tables/cv_5fold_summary.csv) (mean/std) and [`results/tables/cv_5fold_raw_scores.csv`](results/tables/cv_5fold_raw_scores.csv) (per-fold scores).
-
-The cross-validated means are close to the single-split test metrics (within roughly 0.01-0.02 on every metric) and the standard deviations are small (all under 0.01), so the single-split test performance reported above is not an artefact of a favourable split. Both are shown because they answer different questions: the single-split test set reflects the actual final model's performance on genuinely unseen data, while cross-validation reflects the stability of Hist Gradient Boosting with these hyperparameters across different random partitions of the training data.
-
-### Model Comparison by Macro F1-Score
+The dummy majority-class baseline reaches 88.8% *accuracy* just by always
+predicting the majority class, but scores 0.50 balanced accuracy / 0.50
+ROC-AUC — no real discrimination ability, which is why accuracy alone is
+not used to judge these models.
 
 ![Model Comparison Macro F1](results/figures/model_comparison_macro_f1.png)
 
-### Model Comparison by ROC-AUC
-
-![Model Comparison ROC-AUC](results/figures/model_comparison_roc_auc.png)
-
-### Model Comparison by Retrofit-Priority Recall
-
-![Model Comparison Priority Recall](results/figures/model_comparison_priority_recall.png)
-
-### Sample-Size Sensitivity
-
-Implemented in [`src/sample_size_experiment.py`](src/sample_size_experiment.py) (a standalone, optional script — not part of the main `run_pipeline.py`).
-
-All results above use a stratified 100,000-row sample of the 790,389-row model-ready dataset, mainly for fast iteration during development. To check whether this choice affects the results, the final tuned Hist Gradient Boosting pipeline (same hyperparameters, fresh 80/20 split each time) was re-trained from scratch on three sample sizes: 100,000 rows, 300,000 rows, and the full dataset.
-
-| Sample size | Train rows | Fit time | Accuracy | Balanced Accuracy | Macro F1 | ROC-AUC |
-| ----------: | ---------: | -------: | -------: | -----------------: | -------: | ------: |
-|     100,000 |     80,000 |    2.2 s |   0.9603 |              0.8634 |   0.8918 |  0.9704 |
-|     300,000 |    240,000 |    7.4 s |   0.9635 |              0.8697 |   0.9002 |  0.9729 |
-| 790,389 (full) |  632,311 |   38.8 s |   0.9651 |              0.8715 |   0.9042 |  0.9753 |
-
-Full results: [`results/tables/sample_size_comparison.csv`](results/tables/sample_size_comparison.csv).
-
-![Sample Size Comparison](results/figures/sample_size_comparison.png)
-
-Training on the full dataset was very fast (under 40 seconds) — Hist Gradient Boosting scales well, so compute was not actually a constraint here. Every metric improves modestly and monotonically with more data (macro F1: +0.008 from 100k to 300k, +0.004 from 300k to full), with diminishing returns as sample size grows. This confirms the results reported throughout this project are not an artefact of the smaller 100,000-row sample — they hold, and improve slightly, at full scale. The 100,000-row sample is kept as the basis for all other reported results (model comparison, tuning, cross-validation, explainability) for consistency and faster iteration, since the difference in performance is small relative to the difference in runtime for the more expensive steps (RandomizedSearchCV and SHAP).
+**Full results** (before/after tuning table, CV per-fold scores,
+sample-size experiment, all baseline model figures) →
+[`docs/METHODOLOGY.md`](docs/METHODOLOGY.md#hyperparameter-tuning).
 
 ---
 
-## Explainability Analysis
+## Explainability
 
-Explainability is implemented in:
+Two independent methods — permutation importance and SHAP — were used to
+identify which dwelling characteristics drive the model, and **agree
+closely**: 8 of the top 10 features are shared between them.
 
-```text
-src/explainability.py
-```
-
-Two complementary explainability methods are used: permutation importance (global, model-agnostic) and SHAP (global and local, based on the model's internal structure). Permutation importance was used to identify which original dwelling features most influenced model performance.
-
-Permutation importance measures how much the model performance decreases when the values of one feature are randomly shuffled. If shuffling a feature causes a large drop in performance, the model is relying strongly on that feature.
-
-This method was chosen because it is model-agnostic and can be applied to the final trained pipeline without needing to inspect model-specific internal parameters.
-
-Top 10 features by permutation importance (computed on the final tuned model):
-
-| Rank | Feature                    | Interpretation                                                                                  |
-| ---: | --------------------------- | ------------------------------------------------------------------------------------------------ |
-|    1 | `ground_floor_area`         | Larger or smaller dwelling size affects heating demand and energy performance.                  |
-|    2 | `u_value_window`            | Window thermal transmittance affects heat loss through glazing.                                 |
-|    3 | `year_of_construction`      | Construction period is linked to building standards and insulation quality.                     |
-|    4 | `u_value_wall`               | Wall thermal performance affects heat loss through the building envelope.                       |
-|    5 | `main_water_heating_fuel`    | Water-heating fuel type is related to energy-system efficiency.                                 |
-|    6 | `u_value_roof`               | Roof thermal performance affects heat loss through the roof or attic.                           |
-|    7 | `u_value_floor`              | Floor thermal performance affects heat loss through floors.                                     |
-|    8 | `wall_area`                  | Larger wall area can increase total envelope heat loss.                                         |
-|    9 | `floor_area`                 | Floor area represents building size and contributes to energy-demand differences.               |
-|   10 | `main_space_heating_fuel`    | Space-heating fuel type is related to energy-system efficiency and emissions.                   |
-
-These features are physically meaningful because they relate to dwelling size, construction age, heat loss through the building envelope, heating systems, and dwelling form.
-
-This supports the interpretability of the model because the strongest predictors are consistent with building-energy principles rather than arbitrary or unexplained variables.
-
-A limitation of permutation importance is that correlated features can share importance. Therefore, the results should be interpreted as evidence of model reliance, not as proof of direct causal effects.
-
-### Permutation Importance
-
-![Permutation Importance](results/figures/permutation_importance_top_features.png)
-
-### SHAP Explainability
-
-In addition to permutation importance, the project uses SHAP (SHapley Additive exPlanations) to explain the final Hist Gradient Boosting pipeline. SHAP assigns each feature a contribution value for every individual prediction, based on cooperative game theory, so it supports both global feature-importance summaries and local, prediction-level explanations.
-
-SHAP values were computed with `TreeExplainer` on a stratified sample of 2,000 test-set rows. Because the preprocessing pipeline one-hot encodes categorical columns, SHAP values are computed on the encoded matrix and then mapped back to original feature names: one-hot columns belonging to the same categorical feature (e.g. `dwelling_type_Detached house`, `dwelling_type_Semi-detached house`, ...) are summed to a single mean absolute SHAP value per original feature, and numeric features are shown with their original, unscaled values (e.g. real U-values and m² areas) rather than the standardised values the model actually sees. This keeps the SHAP outputs directly comparable with the permutation importance table above, which also operates on original feature columns.
-
-Top 10 features by mean absolute SHAP value (computed on the final tuned model):
-
-| Rank | Feature                    | Mean \|SHAP\| |
-| ---: | --------------------------- | ------------: |
-|    1 | `u_value_window`            |          0.744 |
-|    2 | `year_of_construction`      |          0.689 |
-|    3 | `ground_floor_area`         |          0.637 |
-|    4 | `u_value_wall`               |          0.563 |
-|    5 | `u_value_roof`               |          0.379 |
-|    6 | `u_value_floor`              |          0.288 |
-|    7 | `main_water_heating_fuel`    |          0.241 |
-|    8 | `county_name`                |          0.188 |
-|    9 | `wall_area`                  |          0.184 |
-|   10 | `volume`                     |          0.173 |
-
-Full results: [`results/tables/shap_feature_importance.csv`](results/tables/shap_feature_importance.csv) and [`results/tables/shap_vs_permutation_importance.csv`](results/tables/shap_vs_permutation_importance.csv).
-
-#### Global Summary (Beeswarm)
+**Top drivers:** window/wall/roof U-values, ground floor area, year of
+construction, and water-heating fuel — all physically meaningful and
+consistent with building-energy principles, not arbitrary correlations.
 
 ![SHAP Summary Beeswarm](results/figures/shap_summary_beeswarm.png)
 
-Each point is one dwelling; its position shows the SHAP value (impact on the model's retrofit-priority score) and its colour shows the underlying feature value. High (red) window, wall, and roof U-values push predictions toward retrofit priority, while low (blue) U-values push toward not-priority, confirming these thermal-transmittance features drive the model in the physically expected direction.
+*High (red) U-values push predictions toward retrofit priority; low
+(blue) U-values push toward not-priority — exactly the expected physical
+direction. Points are individual dwellings from a 2,000-row SHAP sample.*
 
-#### Local Explanations
+SHAP also explains *individual* predictions in real units (actual
+U-values, m²) via waterfall plots — this is what powers the live
+explanation in the [dashboard](#interactive-dashboard) below.
 
-Two individual predictions were explained with SHAP waterfall plots:
-
-**Confidently retrofit-priority (P = 1.000):**
-
-![SHAP Waterfall Confident](results/figures/shap_waterfall_confident_priority.png)
-
-This is a dwelling built in 1900 with very poor U-values across wall (1.71), roof (1.65), window (3.73), and door (3.39) — all far worse than modern building-regulation standards — which together push the prediction strongly toward retrofit priority.
-
-**Borderline prediction (P = 0.500):**
-
-![SHAP Waterfall Borderline](results/figures/shap_waterfall_borderline.png)
-
-This dwelling shows conflicting evidence: it is a large home (302 m² ground floor area, 1,518 m³ volume) with generally good U-values (window 2.2, wall 0.37, floor 0.34, roof 0.21), which pushes toward not-priority. However its larger-than-typical wall and roof areas and a comparatively recent (2005) construction year push slightly the other way, leaving the prediction almost exactly on the 0.5 decision boundary.
-
-#### SHAP vs Permutation Importance
-
-The two methods agree closely: 8 of the top 10 features are shared between them (`ground_floor_area`, `u_value_window`, `year_of_construction`, `u_value_wall`, `main_water_heating_fuel`, `u_value_roof`, `u_value_floor`, `wall_area`). SHAP additionally surfaces `county_name` and `volume` in its top 10, while permutation importance instead surfaces `floor_area` and `main_space_heating_fuel`. The two methods disagree mainly on ranking order rather than which features matter — permutation importance ranks `ground_floor_area` first (largest drop in macro F1 when shuffled), while SHAP ranks `u_value_window` first (largest average contribution to individual predictions). This is expected: permutation importance measures the effect on overall model *performance*, while SHAP measures the average magnitude of each feature's contribution to individual model *outputs*, so a feature can be highly influential on individual predictions without being the single most damaging feature to shuffle, and vice versa. The consistency between the two independent methods increases confidence that these dwelling-envelope and construction-year features are genuinely driving the model, rather than being an artefact of one particular importance method.
+**Full comparison** (SHAP vs. permutation methodology, local waterfall
+examples, full top-10 tables) →
+[`docs/METHODOLOGY.md`](docs/METHODOLOGY.md#shap-methodology).
 
 ---
 
 ## Key Interpretation
 
-The results suggest that BER data can be used to classify retrofit-priority dwellings with strong predictive performance.
-
-The best model, Hist Gradient Boosting, achieved high recall for retrofit-priority dwellings. This is important because a retrofit-prioritisation model should identify as many poor-performing dwellings as possible.
-
-The explainability analysis showed that the most influential features are related to building size, thermal transmittance, construction year, heating fuel, and envelope area. These variables are consistent with known building-energy principles.
-
----
-
-## Saved Model
-
-The final trained pipeline (preprocessing + tuned Hist Gradient Boosting model) is saved to:
-
-```text
-models/best_model.joblib
-```
-
-This file is produced by `src/train_models.py` and is committed to this repository (it is the one exception carved out of the `models/*.joblib` rule in `.gitignore`) so that the model can be loaded directly, without retraining, by anything that needs predictions — including the Streamlit dashboard. At roughly 1 MB, it is small enough to ship safely in the repository.
-
-```python
-import joblib
-
-pipeline = joblib.load("models/best_model.joblib")
-prediction = pipeline.predict(new_dwelling_df)          # 0 = not priority, 1 = retrofit priority
-probability = pipeline.predict_proba(new_dwelling_df)[:, 1]
-```
-
-**SHAP explainer:** rather than also persisting a fitted SHAP explainer object, the explainer is reconstructed on the fly from the loaded model:
-
-```python
-import shap
-
-explainer = shap.TreeExplainer(pipeline.named_steps["model"])
-```
-
-This is deliberate, not a shortcut: `shap.TreeExplainer` reads the trained tree structure directly from the model object, so building it involves no retraining or refitting on data — it takes under 50ms, regardless of dataset size. Saving a second serialized explainer file alongside the model would duplicate the same tree information for no runtime benefit, so reconstructing it at startup is both simpler and lighter than persisting one.
+BER data predicts retrofit priority with strong performance (96%
+accuracy, 0.97 ROC-AUC), and the features driving those predictions are
+exactly the ones building scientists would expect: envelope heat loss,
+construction age, and heating systems — not arbitrary statistical
+artefacts.
 
 ---
 
-## How to Run the Project
+## Interactive Dashboard
 
-This project was developed using:
+**Live at: [ml-retrofit-ber.streamlit.app](https://ml-retrofit-ber.streamlit.app)**
 
-```text
-Python 3.13.5
-```
+A Streamlit app puts the model in front of a user, not just a report. It
+loads `models/best_model.joblib` directly at startup — no retraining.
 
-The Python dependencies are listed in:
+### 🔮 Predict
 
-```text
-requirements.txt
-```
+Full input form for a dwelling's characteristics (county, dwelling type,
+year built, U-values, heating fuel, etc.), defaulted to typical values.
+Returns the retrofit-priority prediction, its probability, and a live
+SHAP waterfall explaining that specific prediction in real units.
 
-The main packages used are `pandas`, `numpy`, `scikit-learn`, `shap`, `streamlit`, `matplotlib`, `seaborn`, `jupyter`, `joblib`, and `openpyxl`.
+![Predict tab](docs/images/dashboard_predict_tab.png)
 
-### Setup Notes
+### 📊 Model & Data
 
-Before running the pipeline, make sure the required folder structure exists locally:
+Comparison tables, tuning/CV results, and key figures — doubles as a
+project showcase, not just a predictor.
 
-- data/raw/
-- data/processed/
-- results/figures/
-- results/tables/
-- models/
+![Model & Data tab](docs/images/dashboard_model_data_tab.png)
 
-The raw BER dataset should be placed inside data/raw/ using the expected file name:
+### ℹ️ About
 
-ber_cleaned_20231005.csv
+A general-audience summary of the project, data source, and limitations.
 
-The generated processed files, figures, tables, and trained models are created when the pipeline is run locally.
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/ACM40960/Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data.git
-cd Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data
-```
-
-### 2. Install requirements
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-### 3. Add the raw dataset
-
-Download the cleaned BER dataset from Mendeley Data and rename the file to:
-
-```text
-ber_cleaned_20231005.csv
-```
-
-Place it in:
-
-```text
-data/raw/ber_cleaned_20231005.csv
-```
-
-The raw dataset is not committed to this repository because it is large.
-
-### 4. Run the full pipeline
-
-```bash
-python src/run_pipeline.py
-```
-
-This command runs the complete project workflow:
-
-```text
-data cleaning
-exploratory data analysis
-model training
-final model evaluation
-explainability analysis
-results summary
-```
-
-The final processed dataset, trained model, figures, and result tables are generated locally.
-
-### Optional: Run each stage separately
-
-```bash
-python src/data_cleaning.py
-python src/eda.py
-python src/train_models.py
-python src/evaluate_models.py
-python src/explainability.py
-python src/results_summary.py
-```
-
-### Optional: Sample-size sensitivity check
-
-Not part of the main pipeline above; re-trains the final model on 100k/300k/full-dataset samples to check results hold at scale (see [Sample-Size Sensitivity](#sample-size-sensitivity)). Requires `src/train_models.py` to have already been run at least once, since it reuses the tuned hyperparameters saved in `models/best_model.joblib`.
-
-```bash
-python src/sample_size_experiment.py
-```
+Run it locally with `streamlit run app.py`.
 
 ---
 
-## Dashboard
+## Deploying Your Own Copy
 
-**Live demo: [ml-retrofit-ber.streamlit.app](https://ml-retrofit-ber.streamlit.app)**
-
-A Streamlit dashboard at [`app.py`](app.py) turns the project into an interactive demo. It loads `models/best_model.joblib` at startup (no retraining) and has three tabs:
-
-* **🔮 Predict** — a form covering every feature the model expects (county, dwelling type, year of construction, floor/wall/roof/window areas, U-values, glazing ratio, heating fuel, etc.), defaulted to typical (median) values from the training data. Submitting it shows the retrofit-priority prediction, its probability, and a live SHAP waterfall plot explaining that specific prediction in real units (not standardised values).
-* **📊 Model & Data** — the static model comparison, tuning, and cross-validation tables, plus a few EDA and explainability figures, so the dashboard doubles as a project showcase rather than just a predictor.
-* **ℹ️ About** — a short summary of the project, data source, B2 threshold rationale, and limitations (condensed from this README, not duplicated verbatim).
-
-Run it locally with:
-
-```bash
-streamlit run app.py
-```
-
-See [Deployment](#deployment) below for steps to deploy this on Streamlit Community Cloud.
-
----
-
-## Deployment
-
-The repository is deployment-ready: `app.py` sits at the repo root, `requirements.txt` lists every dependency the app needs, and the files the app actually reads at runtime (`models/best_model.joblib`, and the small CSVs/PNGs under `results/tables` and `results/figures`) are all committed to git. The large raw and processed datasets are not needed by the app and stay out of the repo via `.gitignore`.
-
-**Pinned versions matter here.** `models/best_model.joblib` is a pickled object, and scikit-learn's internal representation of fitted objects (like `ColumnTransformer`) has changed between versions in ways that break loading a pickle saved by an older version with a newer one. `requirements.txt` pins `scikit-learn==1.6.1` and `joblib==1.4.2` to match the exact versions the model was saved with. That alone isn't enough, though: Streamlit Cloud's default Python version can be too new to have a prebuilt wheel for an older pin like `scikit-learn==1.6.1`, which forces a (likely to fail) source build. The Python version has to be set explicitly in the app's settings — see step 5 below. If you ever retrain and re-save the model with different library versions, update the pins in `requirements.txt` to match.
-
-To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
-
-1. Push this repository to GitHub (already the case for this project).
-2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with the GitHub account that has access to this repo.
-3. Click **"Create app"** → **"Deploy a public app from GitHub"**.
-4. Fill in:
-   * **Repository**: `ACM40960/Explainable-Machine-Learning-for-Irish-Residential-Energy-Retrofit-Prioritisation-Using-BER-Data`
-   * **Branch**: `main`
-   * **Main file path**: `app.py`
-5. Set the Python version to **3.11** (or 3.12) — a version with full wheel coverage for the pinned scikit-learn/shap/numba stack. On app creation this is under **"Advanced settings"**; on an already-deployed app it's under the **⋮** menu → **"Settings"** → General → Python version. Do not leave this on the platform default, which can be a very recent Python release that hasn't caught up on prebuilt wheels yet.
-6. Click **"Deploy"**. Streamlit Cloud installs `requirements.txt` and starts the app; the first build typically takes a few minutes.
-7. Once live, the app gets a URL like `https://<app-name>.streamlit.app`. You can customise the subdomain from the app's settings menu.
-
-If an app was already deployed before the Python version was pinned, changing it in Settings requires a full **reboot** (not just a redeploy) to take effect: **⋮** menu → **"Reboot app"**.
-
-Any future push to `main` that touches `app.py`, `requirements.txt`, `models/best_model.joblib`, or the `results/` folder will trigger Streamlit Cloud to automatically rebuild and redeploy (this does not include Python-version changes made in Settings, which need an explicit reboot as noted above).
-
----
-
-## Main Output Files
-
-### Tables
-
-```text
-results/tables/cleaning_summary.csv
-results/tables/data_quality_audit.csv
-results/tables/leakage_audit.csv
-results/tables/selected_features_rationale.csv
-results/tables/model_metrics.csv
-results/tables/model_metrics_rounded.csv
-results/tables/best_model_evaluation_summary.csv
-results/tables/best_model_classification_report.csv
-results/tables/best_model_confusion_matrix.csv
-results/tables/hgb_tuning_before_after.csv
-results/tables/hgb_best_params.csv
-results/tables/cv_5fold_summary.csv
-results/tables/cv_5fold_raw_scores.csv
-results/tables/sample_size_comparison.csv
-results/tables/permutation_importance.csv
-results/tables/shap_feature_importance.csv
-results/tables/shap_vs_permutation_importance.csv
-results/tables/top_features_rounded.csv
-results/tables/key_results_summary.txt
-```
-
-### Figures
-
-```text
-results/figures/ber_rating_distribution.png
-results/figures/target_distribution.png
-results/figures/top_missingness_model_ready.png
-results/figures/ground_floor_area_by_target.png
-results/figures/year_of_construction_by_target.png
-results/figures/u_value_window_by_target.png
-results/figures/u_value_wall_by_target.png
-results/figures/u_value_roof_by_target.png
-results/figures/model_comparison_macro_f1.png
-results/figures/model_comparison_roc_auc.png
-results/figures/model_comparison_priority_recall.png
-results/figures/confusion_matrix_hist_gradient_boosting_tuned.png
-results/figures/roc_curve_hist_gradient_boosting_tuned.png
-results/figures/sample_size_comparison.png
-results/figures/permutation_importance_top_features.png
-results/figures/shap_summary_beeswarm.png
-results/figures/shap_waterfall_confident_priority.png
-results/figures/shap_waterfall_borderline.png
-```
+The repo is deployment-ready for [Streamlit Community Cloud](https://streamlit.io/cloud):
+push to GitHub → **Create app** → point it at this repo, branch `main`,
+main file `app.py` → **set the Python version to 3.11** in Advanced
+Settings (important — see why in
+[Full Methodology](docs/METHODOLOGY.md#deployment-notes)) → Deploy.
 
 ---
 
 ## Limitations
 
-This project should be interpreted as a data-driven decision-support analysis, not as a replacement for official BER assessment or professional retrofit inspection.
-
-Main limitations:
-
-* The retrofit-priority label is derived from BER rating and is a simplified modelling definition.
-* BER data is based on standardised assessment assumptions, not actual household energy consumption.
-* The model uses selected dwelling-level variables rather than every available BER field.
-* Some BER fields were excluded because of missingness, interpretation difficulty, or leakage risk.
-* Most results in this project (model comparison, tuning, cross-validation, explainability) are based on a stratified sample of 100,000 rows, chosen for faster iteration and to keep the more expensive steps (hyperparameter search, SHAP) practical during development. A [sample-size sensitivity check](#sample-size-sensitivity) confirms results hold, and improve slightly, on the full 790,389-row dataset.
-* The analysis identifies statistical associations, not direct causal effects.
-* Further validation would be needed before using this type of model in operational retrofit planning.
+- The retrofit-priority label is a simplified binary cutoff of a
+  continuous energy-performance measure (see [Why B2?](#target-definition-why-b2)).
+- BER data reflects standardised assessment assumptions, not measured
+  household energy use.
+- The model uses selected dwelling-level variables, not every available
+  BER field.
+- Most results use a 100,000-row sample — confirmed to hold at full
+  scale (see [Full Methodology](docs/METHODOLOGY.md#sample-size-sensitivity)).
+- Associations identified are statistical, not causal.
+- Further validation would be needed before operational retrofit
+  planning use.
 
 ---
 
 ## Future Work
 
-Possible extensions include:
-
-* adopt the full dataset as the default for the main pipeline (model comparison, tuning, and explainability), now that the [sample-size sensitivity check](#sample-size-sensitivity) shows this is computationally practical;
-* compare different retrofit-priority thresholds;
-* include more carefully screened BER variables;
-* perform county-level or dwelling-type-specific modelling;
-* explore regression models for numerical energy-performance indicators;
-* validate results on newer BER records if available.
+- Adopt the full dataset as the pipeline default (already shown
+  computationally practical).
+- Compare alternative or multi-level retrofit-priority thresholds.
+- County- or dwelling-type-specific models.
+- Regression models for numerical energy-performance indicators.
+- Validate against newer BER records as they become available.
 
 ---
 
 ## Authors
 
-* Muhammad Raiyan
-* Qudsia Samar Babu Khadar
+* **Muhammad Raiyan**
+* **Qudsia Samar Babu Khadar**
+
+ACM40960: Projects in Mathematical Modelling — University College Dublin
 
 ---
 
-## Module
+## License
 
-**ACM 40960: Projects in Mathematical Modelling**
-University College Dublin
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
 ## References
 
-* Sustainable Energy Authority of Ireland. [Building Energy Rating information](https://www.seai.ie/ber), [BER Research Tool](https://ndber.seai.ie/BERResearchTool/ber/search.aspx), and [B2 Home Energy Rating](https://www.seai.ie/about/tools/b2-rated-home).
-
+* Ahern, C., Raushan, K., and Essien-Thompson, E. (2024). [*Irish Building Energy Rating Database (Cleaned 05/10/2023)*](https://data.mendeley.com/datasets/yhgdzfpnym/1). Mendeley Data. DOI: [10.17632/yhgdzfpnym.1](https://doi.org/10.17632/yhgdzfpnym.1).
+* Sustainable Energy Authority of Ireland. [Building Energy Rating information](https://www.seai.ie/ber), [B2 Home Energy Rating](https://www.seai.ie/about/tools/b2-rated-home).
 * Government of Ireland. [National Retrofit Plan](https://www.gov.ie/en/department-of-climate-energy-and-the-environment/publications/national-retrofit-plan/).
-
 * Office of the Comptroller and Auditor General (2023). [Performance of Certain Residential Retrofit Schemes](https://www.audit.gov.ie/en/find-report/publications/2023/8-performance-of-certain-residential-retrofit-schemes.pdf).
+* Lundberg, S. M., and Lee, S. I. (2017). [A Unified Approach to Interpreting Model Predictions](https://arxiv.org/abs/1705.07874). NeurIPS.
+* Ribeiro, M. T., Singh, S., and Guestrin, C. (2016). [“Why Should I Trust You?” Explaining the Predictions of Any Classifier](https://arxiv.org/abs/1602.04938). ACM SIGKDD.
 
-* Ahern, C., Raushan, K., and Essien-Thompson, E. (2024). [*Irish Building Energy Rating Database - (Cleaned 05/10/2023)*](https://data.mendeley.com/datasets/yhgdzfpnym/1). Mendeley Data, Version 1. DOI: [10.17632/yhgdzfpnym.1](https://doi.org/10.17632/yhgdzfpnym.1).
-
-* Ribeiro, M. T., Singh, S., and Guestrin, C. (2016). [“Why Should I Trust You?” Explaining the Predictions of Any Classifier](https://arxiv.org/abs/1602.04938). Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining.
-
-* Lundberg, S. M., and Lee, S. I. (2017). [A Unified Approach to Interpreting Model Predictions](https://arxiv.org/abs/1705.07874). Advances in Neural Information Processing Systems.
+**→ For full methodology, experiment justifications, and every generated
+output file, see [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).**
