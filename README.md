@@ -186,6 +186,23 @@ not used to judge these models.
 
 ![Model Comparison Macro F1](results/figures/model_comparison_macro_f1.png)
 
+### Confusion Matrix
+
+Raw counts alone can hide how a classifier performs on the minority
+class, so both the counts and the row-normalized (percentage-of-actual-class)
+version are reported:
+
+![Confusion Matrix](results/figures/best_model_confusion_matrix.png)
+
+The model catches **98.8%** of true retrofit-priority dwellings (recall),
+but only **73.9%** of true not-priority dwellings — 26.1% of genuinely
+not-priority homes are misclassified as priority. This asymmetry is
+exactly why balanced accuracy (0.863) sits well below raw accuracy
+(0.960), and why balanced accuracy/macro F1 are used to judge this model
+rather than accuracy alone. Full tables: `results/tables/best_model_confusion_matrix.csv`
+(counts) and `results/tables/best_model_confusion_matrix_normalized.csv`
+(normalized).
+
 **Full results** (before/after tuning table, CV per-fold scores,
 sample-size experiment, all baseline model figures) →
 [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md#hyperparameter-tuning).

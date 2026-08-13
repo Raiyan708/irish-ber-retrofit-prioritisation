@@ -11,12 +11,14 @@ Run from the project root:
 
 import pandas as pd
 import joblib
+import matplotlib.pyplot as plt
 
 from sklearn.base import clone
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate
 from sklearn.metrics import (
     classification_report,
     confusion_matrix,
+    ConfusionMatrixDisplay,
     roc_auc_score,
     accuracy_score,
     balanced_accuracy_score,
@@ -28,6 +30,7 @@ from sklearn.metrics import (
 from config import (
     MODEL_READY_DATA_FILE,
     RESULTS_TABLES_DIR,
+    RESULTS_FIGURES_DIR,
     RANDOM_STATE,
     MODEL_SAMPLE_SIZE,
     PROJECT_ROOT,
@@ -111,6 +114,7 @@ def evaluate_best_model(model, X_test, y_test):
 def save_outputs(summary, y_test, y_pred):
     """Save final evaluation tables."""
     RESULTS_TABLES_DIR.mkdir(parents=True, exist_ok=True)
+    RESULTS_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     summary_df = pd.DataFrame([summary]).round(4)
     summary_df.to_csv(
@@ -131,17 +135,49 @@ def save_outputs(summary, y_test, y_pred):
         RESULTS_TABLES_DIR / "best_model_classification_report.csv"
     )
 
-    cm = confusion_matrix(y_test, y_pred)
+    labels = ["Not priority", "Priority"]
 
+    cm = confusion_matrix(y_test, y_pred)
     cm_df = pd.DataFrame(
         cm,
         index=["Actual not priority", "Actual priority"],
         columns=["Predicted not priority", "Predicted priority"],
     )
-
     cm_df.to_csv(
         RESULTS_TABLES_DIR / "best_model_confusion_matrix.csv"
     )
+
+    # Row-normalized (each row of ground truth sums to 1), per evaluator
+    # guidance: raw counts alone hide class-imbalance effects, so every
+    # row/column should also be shown as a proportion.
+    cm_normalized = confusion_matrix(y_test, y_pred, normalize="true")
+    cm_normalized_df = pd.DataFrame(
+        cm_normalized,
+        index=["Actual not priority", "Actual priority"],
+        columns=["Predicted not priority", "Predicted priority"],
+    ).round(4)
+    cm_normalized_df.to_csv(
+        RESULTS_TABLES_DIR / "best_model_confusion_matrix_normalized.csv"
+    )
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 6))
+
+    ConfusionMatrixDisplay(cm, display_labels=labels).plot(
+        ax=axes[0], values_format="d", colorbar=False
+    )
+    axes[0].set_title("Counts")
+
+    ConfusionMatrixDisplay(cm_normalized, display_labels=labels).plot(
+        ax=axes[1], values_format=".1%", colorbar=False
+    )
+    axes[1].set_title("Normalized (row = % of actual class)")
+
+    fig.suptitle("Final Model Confusion Matrix: Hist Gradient Boosting (Tuned)")
+    plt.tight_layout()
+
+    output_path = RESULTS_FIGURES_DIR / "best_model_confusion_matrix.png"
+    plt.savefig(output_path, dpi=300)
+    plt.close()
 
 
 def run_cross_validation(model, X_train, y_train):

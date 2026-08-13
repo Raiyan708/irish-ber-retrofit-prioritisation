@@ -358,6 +358,7 @@ model_metrics_rounded.csv
 best_model_evaluation_summary.csv
 best_model_classification_report.csv
 best_model_confusion_matrix.csv
+best_model_confusion_matrix_normalized.csv
 hgb_tuning_before_after.csv
 hgb_best_params.csv
 cv_5fold_summary.csv
@@ -384,6 +385,7 @@ u_value_roof_by_target.png
 model_comparison_macro_f1.png
 model_comparison_roc_auc.png
 model_comparison_priority_recall.png
+best_model_confusion_matrix.png
 confusion_matrix_hist_gradient_boosting_tuned.png
 roc_curve_hist_gradient_boosting_tuned.png
 sample_size_comparison.png
